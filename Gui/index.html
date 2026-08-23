@@ -124,12 +124,12 @@ button.small { padding: 3px 10px; font-size: 12px; }
   <h1>Google Photos Recovery</h1>
   <div id="cdpBadge" class="badge bad" title="Click to learn about CDP" onclick="showPopup('cdp')"><div class="dot"></div><span id="cdpLabel">CDP</span></div>
   <div id="adbBadge" class="badge bad" title="Click to learn about ADB" onclick="showPopup('adb')"><div class="dot"></div> ADB</div>
-  <label style="font-size:12px;color:var(--muted)">Account:</label>
-  <select id="accountSelect" title="Switch Google account">
-    <option value="/u/0/">/u/0/</option>
-    <option value="/u/1/">/u/1/</option>
-    <option value="/u/2/">/u/2/</option>
-    <option value="/u/3/">/u/3/</option>
+  <label style="font-size:12px;color:var(--muted)" title="Switches which Google account is active in the Chrome browser">Browser:</label>
+  <select id="accountSelect" title="Switch Google account in Chrome (not the Pixel)">
+    <option value="/u/0/">Account 0</option>
+    <option value="/u/1/">Account 1</option>
+    <option value="/u/2/">Account 2</option>
+    <option value="/u/3/">Account 3</option>
   </select>
   <button class="small" onclick="switchAccount()">Switch</button>
   <div style="width:1px;height:20px;background:var(--border)"></div>
@@ -279,6 +279,7 @@ let sse = null;
 let albums = [];
 let lastMatchedMediaKeys = [];
 let currentOp = null;
+const knownEmails = {}; // path -> email, persists across status polls
 
 // ── Popup ─────────────────────────────────────────────────────────────────────
 
@@ -355,29 +356,29 @@ function connectSSE() {
 
 // ── Status ────────────────────────────────────────────────────────────────────
 
+function updateAccountSelect(activeAccount, emails) {
+  if (emails) Object.assign(knownEmails, emails);
+  const sel = document.getElementById('accountSelect');
+  for (const opt of sel.options) {
+    const num = opt.value.match(/\d+/)?.[0] ?? '?';
+    opt.textContent = knownEmails[opt.value] || `Account ${num}`;
+  }
+  if (activeAccount) sel.value = activeAccount;
+}
+
 async function refreshStatus() {
   try {
     const r = await fetch(`${API}/api/status`).then(r => r.json());
     const cdp = document.getElementById('cdpBadge');
     cdp.className = `badge ${r.cdpConnected ? 'ok' : 'bad'}`;
-    const displayName = r.accountEmail || (r.account && r.account !== '/' ? r.account : null);
-    document.getElementById('cdpLabel').textContent = displayName || 'CDP';
+    const cdpText = r.cdpConnected
+      ? (r.accountEmail ? `CDP (${r.accountEmail})` : (r.account && r.account !== '/' ? `CDP ${r.account}` : 'CDP'))
+      : 'CDP';
+    document.getElementById('cdpLabel').textContent = cdpText;
     const adb = document.getElementById('adbBadge');
     adb.className = `badge ${r.adbConnected ? 'ok' : 'warn'}`;
     adb.innerHTML = `<div class="dot"></div> ADB`;
-    if (r.account) {
-      const sel = document.getElementById('accountSelect');
-      for (const opt of sel.options) {
-        if (opt.value === r.account) {
-          sel.value = r.account;
-          if (r.accountEmail) {
-            const num = r.account.match(/\d+/)?.[0];
-            opt.textContent = `${r.accountEmail}${num !== undefined ? ` (${num})` : ''}`;
-          }
-          break;
-        }
-      }
-    }
+    updateAccountSelect(r.account, r.knownEmails);
     if (r.manifest) updateStats(r.manifest);
     if (r.workDir) document.getElementById('workDirLabel').textContent = `Work: ${r.workDir}`;
     if (r.downloadsDir) document.getElementById('downloadsLabel').textContent = `Downloads: ${r.downloadCount ?? 0} files`;

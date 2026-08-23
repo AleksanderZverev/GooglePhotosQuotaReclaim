@@ -20,7 +20,7 @@ const WORK_DIR = process.env.WORK_DIR || path.dirname(__dirname);
 const MANIFEST_FILE = path.join(WORK_DIR, 'manifest.json');
 const DOWNLOADS_DIR = path.join(WORK_DIR, 'downloads');
 
-let emailCache = { email: null, path: null, at: 0 };
+const emailCacheMap = new Map(); // path -> { email, at }
 
 // ── SSE broadcast ─────────────────────────────────────────────────────────────
 
@@ -188,12 +188,32 @@ async function batchQuotaInfo(cdp, tokens, mediaKeys) {
   return results;
 }
 
+function makeBatchExecuteExpr(tokens, rpcId, requestData) {
+  return `(async () => {
+    const t = ${JSON.stringify(tokens)};
+    const id = ${JSON.stringify(rpcId)};
+    const req = ${JSON.stringify(requestData)};
+    const wrapped = [[[id, JSON.stringify(req), null, 'generic']]];
+    const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrapped)) + '&at=' + encodeURIComponent(t.at) + '&';
+    const ps = new URLSearchParams({ rpcids: id, 'source-path': window.location.pathname, 'f.sid': t.fsid, bl: t.bl, pageId: 'none', rt: 'c' });
+    const url = 'https://photos.google.com' + t.path + 'data/batchexecute?' + ps;
+    const resp = await fetch(url, { method: 'POST', credentials: 'include', headers: {'content-type': 'application/x-www-form-urlencoded;charset=UTF-8'}, body });
+    const text = await resp.text();
+    const lines = text.split('\\n').filter(l => l.includes('wrb.fr'));
+    if (!lines.length) return { error: 'no envelope (status=' + resp.status + ')' };
+    try { const p = JSON.parse(lines[0]); return { ok: JSON.parse(p[0][2]) }; }
+    catch (e) { return { error: 'parse: ' + e.message }; }
+  })()`;
+}
+
 async function listAllAlbums(cdp, tokens) {
   const albums = [];
   let pageToken = null;
   do {
-    const payload = await callRpc(cdp, 'F2A0H', [pageToken, null, 100], tokens);
-    const page = payload?.[0] ?? [];
+    const res = await cdp.evaluate(makeBatchExecuteExpr(tokens, 'F2A0H', [pageToken, null, 100]));
+    if (res?.error) throw new Error(`F2A0H: ${res.error}`);
+    const payload = res?.ok;
+    const page = Array.isArray(payload?.[0]) ? payload[0] : [];
     if (!page.length) break;
     for (const a of page) {
       const albumId = a?.[0];
@@ -807,20 +827,24 @@ async function handle(req, res) {
       let accountEmail = null;
       if (photosTabs.length > 0) {
         const now = Date.now();
-        if (emailCache.path === account && now - emailCache.at < 30000) {
-          accountEmail = emailCache.email;
-        } else if (now - emailCache.at > 5000) {
+        const cached = emailCacheMap.get(account);
+        if (cached && now - cached.at < 30000) {
+          accountEmail = cached.email;
+        } else if (!cached || now - cached.at > 5000) {
           const email = await tryGetAccountEmail(photosTabs[0].webSocketDebuggerUrl);
-          emailCache = { email, path: account, at: now };
+          emailCacheMap.set(account, { email, at: now });
           accountEmail = email;
         } else {
-          accountEmail = emailCache.email;
+          accountEmail = cached?.email || null;
         }
       }
+      const knownEmails = {};
+      for (const [p, d] of emailCacheMap.entries()) { if (d.email) knownEmails[p] = d.email; }
       return json(res, {
         cdpConnected: photosTabs.length > 0,
         account,
         accountEmail,
+        knownEmails,
         photosTabs: photosTabs.map(t => ({ url: t.url, title: t.title })),
         manifest: manifestStats(readManifest()),
         currentOp,
