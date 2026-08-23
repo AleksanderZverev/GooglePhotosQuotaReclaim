@@ -26,7 +26,7 @@ header h1 { font-size: 16px; font-weight: 600; flex: 1; }
 #accountSelect { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; max-width: 200px; }
 
 /* Layout */
-main { display: grid; grid-template-columns: 280px 1fr; grid-template-rows: 1fr 220px; flex: 1; min-height: 0; gap: 0; }
+main { display: grid; grid-template-columns: 260px 1fr; grid-template-rows: 1fr 200px; flex: 1; min-height: 0; }
 
 /* Sidebar */
 aside { grid-row: 1 / 3; border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
@@ -39,9 +39,8 @@ aside { grid-row: 1 / 3; border-right: 1px solid var(--border); display: flex; f
 .album-item input[type=checkbox] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
 .album-name { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .album-count { color: var(--muted); font-size: 11px; flex-shrink: 0; }
-.sidebar-footer { padding: 10px; border-top: 1px solid var(--border); display: flex; gap: 6px; }
-.sidebar-footer button { flex: 1; font-size: 12px; }
-#selCount { font-size: 11px; color: var(--muted); text-align: center; padding: 2px 0; }
+.sidebar-footer { padding: 8px 10px; border-top: 1px solid var(--border); display: flex; gap: 6px; align-items: center; }
+#selCount { font-size: 11px; color: var(--muted); flex: 1; }
 
 /* Content */
 .content { grid-row: 1; padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
@@ -55,26 +54,30 @@ aside { grid-row: 1 / 3; border-right: 1px solid var(--border); display: flex; f
 .stat-value.verified { color: var(--success); }
 .stat-value.trashed { color: var(--accent); }
 
-/* Ops */
-.section-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
-.ops-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.op-btn { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; color: var(--text); text-align: left; transition: border-color .15s, background .15s; }
-.op-btn:hover:not(:disabled) { border-color: var(--accent); background: rgba(79,142,247,.06); }
-.op-btn:disabled { opacity: .4; cursor: not-allowed; }
-.op-btn.running { border-color: var(--warn); animation: pulse 1.2s infinite; }
-.op-btn.done-ok { border-color: var(--success); }
-.op-btn.done-fail { border-color: var(--error); }
-@keyframes pulse { 0%,100% { background: var(--card); } 50% { background: rgba(251,191,36,.08); } }
-.op-num { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .04em; }
-.op-name { font-size: 13px; font-weight: 600; }
-.op-desc { font-size: 11px; color: var(--muted); line-height: 1.3; }
-.op-status { position: absolute; top: 8px; right: 8px; font-size: 16px; }
-.op-btn.album-scope { border-style: dashed; }
-
-/* Album-specific section */
-.album-ops { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.album-ops .op-btn { flex: 1; min-width: 140px; }
-.scope-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(79,142,247,.15); color: var(--accent); border: 1px solid rgba(79,142,247,.3); white-space: nowrap; }
+/* Pipeline */
+.section-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
+.pipeline { display: flex; flex-direction: column; position: relative; padding-left: 2px; }
+.pipeline::before { content: ''; position: absolute; left: 13px; top: 24px; bottom: 24px; width: 2px; background: var(--border); }
+.step { display: flex; align-items: center; gap: 12px; padding: 8px 0; position: relative; }
+.step-num {
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  flex-shrink: 0; background: var(--bg); z-index: 1;
+  transition: border-color .2s, color .2s, background .2s;
+}
+.step-num.ready { border-color: var(--accent); color: var(--accent); }
+.step-num.running { border-color: var(--warn); color: var(--warn); animation: step-pulse 1.2s infinite; }
+.step-num.done { border-color: var(--success); color: var(--success); background: rgba(74,222,128,.1); }
+.step-num.error { border-color: var(--error); color: var(--error); }
+@keyframes step-pulse { 0%,100% { background: var(--bg); } 50% { background: rgba(251,191,36,.1); } }
+.step-info { flex: 1; min-width: 0; }
+.step-name { font-size: 13px; font-weight: 600; line-height: 1.2; }
+.step-desc { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.step-stat { font-size: 11px; margin-top: 3px; color: var(--success); }
+.step-stat.pending { color: var(--muted2); }
+.step-stat.warn { color: var(--warn); }
+.step-btn { flex-shrink: 0; }
 
 /* Log */
 .log-panel { border-top: 1px solid var(--border); background: #0a0c13; display: flex; flex-direction: column; overflow: hidden; }
@@ -95,14 +98,12 @@ button.primary { background: var(--accent); color: #fff; }
 button.primary:hover:not(:disabled) { background: #3d7ae0; }
 button.danger { background: rgba(248,113,113,.15); color: var(--error); border-color: rgba(248,113,113,.3); }
 button.danger:hover:not(:disabled) { background: rgba(248,113,113,.25); }
-button.small { padding: 3px 10px; font-size: 12px; }
+button.small { padding: 4px 12px; font-size: 12px; }
 
 /* Misc */
 .empty { color: var(--muted); font-size: 12px; padding: 20px; text-align: center; line-height: 1.7; }
 .empty b { color: var(--text); }
 .empty small { display: block; margin-top: 6px; font-size: 11px; }
-#opSummary { font-size: 12px; color: var(--muted); padding: 2px 0; min-height: 18px; }
-.sep { height: 1px; background: var(--border); margin: 4px 0; }
 
 /* Help button */
 .help-btn { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--border); color: var(--muted); font-size: 10px; font-weight: 700; cursor: pointer; border: none; padding: 0; flex-shrink: 0; line-height: 1; }
@@ -148,11 +149,10 @@ button.small { padding: 3px 10px; font-size: 12px; }
       <button class="small" id="loadAlbumsBtn" onclick="loadAlbums()">Load</button>
     </div>
     <div id="albumList"><div class="empty">Albums are loaded from <b>Google Photos in Chrome</b> — not from the Pixel.<br><br>Connect Chrome (green CDP badge) then click Load.</div></div>
-    <div id="selCount"></div>
     <div class="sidebar-footer">
+      <span id="selCount"></span>
       <button class="small" onclick="selectAll()">All</button>
       <button class="small" onclick="selectNone()">None</button>
-      <button class="small primary" onclick="matchAlbums()" id="matchBtn" disabled>Match Downloads</button>
     </div>
   </aside>
 
@@ -177,79 +177,82 @@ button.small { padding: 3px 10px; font-size: 12px; }
       </div>
     </div>
 
-    <!-- Full-library pipeline -->
+    <!-- Pipeline -->
     <div>
-      <div class="section-title">Full Library Pipeline</div>
-      <div class="ops-grid">
-        <button class="op-btn" id="btn-scan" onclick="runOp('scan')">
-          <span class="op-num">STEP 1</span>
-          <span class="op-name">Scan Quota</span>
-          <span class="op-desc">Find items taking up space</span>
-          <span class="op-status"></span>
-        </button>
-        <button class="op-btn" id="btn-enrich" onclick="runOp('enrich')">
-          <span class="op-num">STEP 2</span>
-          <span class="op-name">Enrich</span>
-          <span class="op-desc">Get dedupKeys (needed for trash)</span>
-          <span class="op-status"></span>
-        </button>
-        <button class="op-btn" id="btn-trash-reupload" onclick="runOp('trash-reupload')">
-          <span class="op-num">STEP 3</span>
-          <span class="op-name">Trash + Reupload</span>
-          <span class="op-desc">Save albums, trash, push to Pixel</span>
-          <span class="op-status"></span>
-        </button>
-        <button class="op-btn" id="btn-verify" onclick="runOp('verify')">
-          <span class="op-num">STEP 4</span>
-          <span class="op-name">Verify</span>
-          <span class="op-desc">Confirm quota freed after backup</span>
-          <span class="op-status"></span>
-        </button>
-        <button class="op-btn" id="btn-restore-albums" onclick="runOp('restore-albums')">
-          <span class="op-num">STEP 5</span>
-          <span class="op-name">Restore Albums</span>
-          <span class="op-desc">Put photos back in albums</span>
-          <span class="op-status"></span>
-        </button>
-        <button class="op-btn" id="btn-cleanup-pixel" onclick="runOp('cleanup-pixel')" style="border-color:rgba(248,113,113,.3)">
-          <span class="op-num">STEP 6</span>
-          <span class="op-name">Cleanup Pixel</span>
-          <span class="op-desc">Remove files from /sdcard/DCIM/Camera/</span>
-          <span class="op-status"></span>
-        </button>
-        <button class="op-btn" id="btn-save-albums" onclick="runOp('save-albums')">
-          <span class="op-num">UTIL</span>
-          <span class="op-name">Save Albums Only</span>
-          <span class="op-desc">Save album data without trashing</span>
-          <span class="op-status"></span>
-        </button>
+      <div class="section-title">Pipeline</div>
+      <div class="pipeline">
+
+        <div class="step">
+          <div class="step-num" id="snum-1">1</div>
+          <div class="step-info">
+            <div class="step-name">Select Albums</div>
+            <div class="step-desc">Choose albums in the sidebar to process</div>
+            <div class="step-stat pending" id="sstat-1">No albums selected</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num" id="snum-2">2</div>
+          <div class="step-info">
+            <div class="step-name">Scan & Prepare</div>
+            <div class="step-desc">Find quota items · get dedupKeys · save album memberships</div>
+            <div class="step-stat pending" id="sstat-2">Select albums first</div>
+          </div>
+          <button class="small primary step-btn" id="btn-scan-full" onclick="runScanFull()" disabled>Scan</button>
+        </div>
+
+        <div class="step">
+          <div class="step-num" id="snum-3">3</div>
+          <div class="step-info">
+            <div class="step-name">Match Downloads</div>
+            <div class="step-desc">Link files in ./downloads/ to manifest items</div>
+            <div class="step-stat pending" id="sstat-3">Scan first</div>
+          </div>
+          <button class="small step-btn" id="btn-match" onclick="matchAlbums()" disabled>Match</button>
+        </div>
+
+        <div class="step">
+          <div class="step-num" id="snum-4">4</div>
+          <div class="step-info">
+            <div class="step-name">Trash + Reupload</div>
+            <div class="step-desc">Delete from cloud · push to Pixel · <span style="color:var(--error)">irreversible</span></div>
+            <div class="step-stat pending" id="sstat-4">Match downloads first</div>
+          </div>
+          <button class="small danger step-btn" id="btn-trash-reupload" onclick="runOp('trash-reupload')" disabled>Trash & Push</button>
+        </div>
+
+        <div class="step">
+          <div class="step-num" id="snum-5">5</div>
+          <div class="step-info">
+            <div class="step-name">Verify</div>
+            <div class="step-desc">Wait 1–4 h for Pixel backup, then confirm quota freed</div>
+            <div class="step-stat pending" id="sstat-5">Trash + reupload first</div>
+          </div>
+          <button class="small step-btn" id="btn-verify" onclick="runOp('verify')" disabled>Verify</button>
+        </div>
+
+        <div class="step">
+          <div class="step-num" id="snum-6">6</div>
+          <div class="step-info">
+            <div class="step-name">Restore Albums</div>
+            <div class="step-desc">Put photos back into their original albums</div>
+            <div class="step-stat pending" id="sstat-6">Verify first</div>
+          </div>
+          <button class="small step-btn" id="btn-restore-albums" onclick="runOp('restore-albums')" disabled>Restore</button>
+        </div>
+
+        <div class="step">
+          <div class="step-num" id="snum-7">7</div>
+          <div class="step-info">
+            <div class="step-name">Cleanup Pixel</div>
+            <div class="step-desc">Remove pushed files from /sdcard/DCIM/Camera/</div>
+            <div class="step-stat pending" id="sstat-7">Trash + reupload first</div>
+          </div>
+          <button class="small danger step-btn" id="btn-cleanup-pixel" onclick="runOp('cleanup-pixel')" disabled>Cleanup</button>
+        </div>
+
       </div>
     </div>
-
-    <!-- Album-specific pipeline -->
-    <div>
-      <div class="section-title" style="display:flex;align-items:center;gap:8px">
-        Album-Specific Pipeline
-        <span id="selScopeBadge" class="scope-badge" style="display:none"></span>
-      </div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Select albums in the sidebar, click "Match Downloads", then run these operations for those files only.</div>
-      <div class="album-ops">
-        <button class="op-btn album-scope" id="btn-scan-albums" onclick="runScanAlbums()" disabled>
-          <span class="op-num">A–1</span>
-          <span class="op-name">Scan Selected Albums</span>
-          <span class="op-desc">Check quota for album photos</span>
-          <span class="op-status"></span>
-        </button>
-        <button class="op-btn album-scope" id="btn-trash-sel" onclick="runTrashSelected()" disabled>
-          <span class="op-num">A–2</span>
-          <span class="op-name">Trash + Reupload Selected</span>
-          <span class="op-desc">Process only matched files</span>
-          <span class="op-status"></span>
-        </button>
-      </div>
-    </div>
-
-    <div id="opSummary"></div>
   </div>
 
   <!-- Log -->
@@ -277,9 +280,9 @@ button.small { padding: 3px 10px; font-size: 12px; }
 const API = '';
 let sse = null;
 let albums = [];
-let lastMatchedMediaKeys = [];
 let currentOp = null;
-const knownEmails = {}; // path -> email, persists across status polls
+let manifestStats = {};
+const knownEmails = {};
 
 // ── Popup ─────────────────────────────────────────────────────────────────────
 
@@ -340,18 +343,49 @@ function connectSSE() {
     const msg = JSON.parse(e.data);
     if (msg.type === 'log') appendLog(msg.text, msg.level);
     if (msg.type === 'stats') updateStats(msg.stats);
-    if (msg.type === 'opStart') { currentOp = msg.name; updateOpButtons(); appendLog(`▶ ${msg.name}`, 'op'); }
+    if (msg.type === 'opStart') {
+      currentOp = msg.name;
+      setStepRunning(msg.name);
+      updateButtonStates();
+      appendLog(`▶ ${msg.name}`, 'op');
+    }
     if (msg.type === 'opEnd') {
       currentOp = null;
-      updateOpButtons();
-      const btn = document.getElementById(`btn-${msg.name}`);
-      if (btn) { btn.classList.toggle('done-ok', msg.ok); btn.classList.toggle('done-fail', !msg.ok); btn.querySelector('.op-status').textContent = msg.ok ? '✓' : '✗'; }
-      if (msg.summary) document.getElementById('opSummary').textContent = msg.summary;
-      appendLog(msg.ok ? `✓ ${msg.name}: ${msg.summary}` : `✗ ${msg.name}: ${msg.summary}`, msg.ok ? 'success' : 'error');
-      if (msg.name === 'match' && msg.ok) refreshMatchedKeys();
+      setStepDone(msg.name, msg.ok);
+      updateButtonStates();
+      if (msg.summary) appendLog(msg.ok ? `✓ ${msg.name}: ${msg.summary}` : `✗ ${msg.name}: ${msg.summary}`, msg.ok ? 'success' : 'error');
     }
   };
   sse.onerror = () => { setTimeout(connectSSE, 3000); };
+}
+
+// ── Step indicators ───────────────────────────────────────────────────────────
+
+const OP_TO_STEP = {
+  'scan-full': 2,
+  'match': 3,
+  'trash-reupload': 4,
+  'verify': 5,
+  'restore-albums': 6,
+  'cleanup-pixel': 7,
+};
+
+function getStepNum(opName) {
+  return OP_TO_STEP[opName];
+}
+
+function setStepRunning(opName) {
+  const n = getStepNum(opName);
+  if (!n) return;
+  const el = document.getElementById(`snum-${n}`);
+  if (el) { el.className = 'step-num running'; el.textContent = '●'; }
+}
+
+function setStepDone(opName, ok) {
+  const n = getStepNum(opName);
+  if (!n) return;
+  const el = document.getElementById(`snum-${n}`);
+  if (el) { el.className = `step-num ${ok ? 'done' : 'error'}`; el.textContent = ok ? '✓' : '✗'; }
 }
 
 // ── Status ────────────────────────────────────────────────────────────────────
@@ -383,12 +417,13 @@ async function refreshStatus() {
     if (r.workDir) document.getElementById('workDirLabel').textContent = `Work: ${r.workDir}`;
     if (r.downloadsDir) document.getElementById('downloadsLabel').textContent = `Downloads: ${r.downloadCount ?? 0} files`;
     currentOp = r.currentOp || null;
-    updateOpButtons();
+    updateButtonStates();
   } catch {}
 }
 
 function updateStats(s) {
   if (!s) return;
+  manifestStats = s;
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val ?? '—'; };
   set('sTotal', s.total);
   set('sQuota', s.quota);
@@ -398,19 +433,95 @@ function updateStats(s) {
   set('sTrashed', s.trashed);
   set('sVerified', s.verified);
   set('sRestored', s.restored);
+  updateStepStats(s);
 }
 
-function updateOpButtons() {
+function updateStepStats(s) {
+  const setStat = (id, text, cls = '') => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.className = `step-stat${cls ? ' ' + cls : ''}`;
+  };
+  const sel = getSelectedAlbumIds();
+
+  // Step 1
+  if (sel.length > 0) setStat('sstat-1', `${sel.length} album${sel.length > 1 ? 's' : ''} selected`);
+  else setStat('sstat-1', 'No albums selected', 'pending');
+
+  // Step 2
+  if (s.quota > 0) setStat('sstat-2', `${s.quota} quota item${s.quota > 1 ? 's' : ''} found`);
+  else if (sel.length > 0) setStat('sstat-2', 'Ready to scan', 'pending');
+  else setStat('sstat-2', 'Select albums first', 'pending');
+
+  // Step 3
+  if (s.downloaded > 0 && s.quota > 0) {
+    const cls = s.downloaded >= s.quota ? '' : 'warn';
+    setStat('sstat-3', `${s.downloaded}/${s.quota} files matched`, cls);
+  } else if (s.quota > 0) setStat('sstat-3', 'Place files in ./downloads/, then match', 'pending');
+  else setStat('sstat-3', 'Scan first', 'pending');
+
+  // Step 4
+  if (s.trashed > 0) setStat('sstat-4', `${s.trashed} items pushed to Pixel`);
+  else if (s.downloaded > 0) setStat('sstat-4', `${s.downloaded} items ready`);
+  else setStat('sstat-4', 'Match downloads first', 'pending');
+
+  // Step 5
+  if (s.verified > 0) setStat('sstat-5', `${s.verified}/${s.trashed || s.quota} verified`);
+  else if (s.trashed > 0) setStat('sstat-5', 'Wait for Pixel backup, then verify', 'pending');
+  else setStat('sstat-5', 'Trash + reupload first', 'pending');
+
+  // Step 6
+  if (s.restored > 0) setStat('sstat-6', `${s.restored} items restored`);
+  else if (s.verified > 0) setStat('sstat-6', `${s.verified} items ready`);
+  else setStat('sstat-6', 'Verify first', 'pending');
+
+  // Step 7
+  if (s.trashed > 0) setStat('sstat-7', `${s.trashed} files on Pixel to clean`);
+  else setStat('sstat-7', 'Trash + reupload first', 'pending');
+}
+
+function updateButtonStates() {
   const busy = !!currentOp;
-  document.querySelectorAll('.op-btn').forEach(b => {
-    b.disabled = busy;
-    b.classList.toggle('running', busy && b.id === `btn-${currentOp}`);
-  });
+  const s = manifestStats;
+  const sel = getSelectedAlbumIds();
+
+  const setBtn = (id, enabled) => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = busy || !enabled;
+  };
+
+  setBtn('btn-scan-full', sel.length > 0);
+  setBtn('btn-match', sel.length > 0);
+  setBtn('btn-trash-reupload', (s.downloaded ?? 0) > 0);
+  setBtn('btn-verify', (s.trashed ?? 0) > 0);
+  setBtn('btn-restore-albums', (s.verified ?? 0) > 0);
+  setBtn('btn-cleanup-pixel', (s.trashed ?? 0) > 0);
+
+  // Step number colors (non-running, non-done states)
   if (!busy) {
-    document.getElementById('matchBtn').disabled = getSelectedAlbumIds().length === 0;
-    document.getElementById('btn-scan-albums').disabled = getSelectedAlbumIds().length === 0;
-    document.getElementById('btn-trash-sel').disabled = lastMatchedMediaKeys.length === 0;
+    setStepReady(1, sel.length > 0);
+    setStepReady(2, sel.length > 0);
+    setStepReady(3, (s.quota ?? 0) > 0 && sel.length > 0);
+    setStepReady(4, (s.downloaded ?? 0) > 0);
+    setStepReady(5, (s.trashed ?? 0) > 0);
+    setStepReady(6, (s.verified ?? 0) > 0);
+    setStepReady(7, (s.trashed ?? 0) > 0);
   }
+
+  // Step 1 special — no button, just readiness indicator
+  const snum1 = document.getElementById('snum-1');
+  if (snum1 && !snum1.classList.contains('done') && !snum1.classList.contains('running')) {
+    snum1.className = `step-num ${sel.length > 0 ? 'ready' : ''}`;
+    snum1.textContent = '1';
+  }
+}
+
+function setStepReady(n, ready) {
+  const el = document.getElementById(`snum-${n}`);
+  if (!el || el.classList.contains('done') || el.classList.contains('running') || el.classList.contains('error')) return;
+  el.className = `step-num${ready ? ' ready' : ''}`;
+  el.textContent = String(n);
 }
 
 // ── Albums ────────────────────────────────────────────────────────────────────
@@ -441,7 +552,7 @@ async function loadAlbums() {
 function renderAlbums() {
   const list = document.getElementById('albumList');
   if (!albums.length) {
-    list.innerHTML = '<div class="empty">No albums found in this Google account.<br><small>Albums are fetched from Google Photos in Chrome — not from the Pixel.</small></div>';
+    list.innerHTML = '<div class="empty">No albums found in this Google account.<br><small>Albums are fetched from Google Photos in Chrome.</small></div>';
     return;
   }
   list.innerHTML = albums.map(a => `
@@ -460,16 +571,10 @@ function toggleAlbum(id) {
 
 function onAlbumChange() {
   const sel = getSelectedAlbumIds();
-  document.getElementById('selCount').textContent = sel.length > 0 ? `${sel.length} selected` : '';
-  document.getElementById('matchBtn').disabled = !!(currentOp) || sel.length === 0;
-  document.getElementById('btn-scan-albums').disabled = !!(currentOp) || sel.length === 0;
-  const badge = document.getElementById('selScopeBadge');
-  if (sel.length > 0) {
-    badge.style.display = '';
-    badge.textContent = `${sel.length} album${sel.length > 1 ? 's' : ''} selected`;
-  } else {
-    badge.style.display = 'none';
-  }
+  const selCountEl = document.getElementById('selCount');
+  selCountEl.textContent = sel.length > 0 ? `${sel.length} selected` : '';
+  updateStepStats(manifestStats);
+  updateButtonStates();
 }
 
 function getSelectedAlbumIds() {
@@ -488,41 +593,22 @@ async function post(path, body = {}) {
 
 async function runOp(name) {
   if (currentOp) return;
-  clearOpStatus(name);
   const r = await post(`/api/${name}`);
   if (r.error) appendLog(`Error: ${r.error}`, 'error');
 }
 
-async function runScanAlbums() {
+async function runScanFull() {
   const ids = getSelectedAlbumIds();
   if (!ids.length) return;
-  clearOpStatus('scan-albums');
-  await post('/api/scan', { albumIds: ids });
+  const r = await post('/api/scan-full', { albumIds: ids });
+  if (r.error) appendLog(`Error: ${r.error}`, 'error');
 }
 
 async function matchAlbums() {
   const ids = getSelectedAlbumIds();
   if (!ids.length) return;
-  clearOpStatus('match');
   const r = await post('/api/match', { albumIds: ids });
   if (r.error) appendLog(`Error: ${r.error}`, 'error');
-  // lastMatchedMediaKeys updated in opEnd SSE handler via refreshMatchedKeys()
-}
-
-async function refreshMatchedKeys() {
-  try {
-    const mr = await fetch(`${API}/api/manifest`).then(r => r.json());
-    lastMatchedMediaKeys = (mr.manifest || [])
-      .filter(i => i.downloaded && !i.reuploadComplete)
-      .map(i => i.mediaKey);
-    document.getElementById('btn-trash-sel').disabled = !!(currentOp) || lastMatchedMediaKeys.length === 0;
-  } catch {}
-}
-
-async function runTrashSelected() {
-  if (!lastMatchedMediaKeys.length) return;
-  clearOpStatus('trash-reupload');
-  await post('/api/trash-reupload', { mediaKeys: lastMatchedMediaKeys });
 }
 
 async function switchAccount() {
@@ -569,12 +655,6 @@ async function loadChromeInfo() {
   } catch {}
 }
 
-function clearOpStatus(name) {
-  const btn = document.getElementById(`btn-${name}`);
-  if (btn) { btn.classList.remove('done-ok', 'done-fail', 'running'); btn.querySelector('.op-status').textContent = ''; }
-  document.getElementById('opSummary').textContent = '';
-}
-
 // ── Log ───────────────────────────────────────────────────────────────────────
 
 function appendLog(text, level = 'info') {
@@ -593,7 +673,6 @@ function clearLog() { document.getElementById('logOutput').innerHTML = ''; }
 
 connectSSE();
 refreshStatus();
-refreshMatchedKeys();
 loadChromeInfo();
 setInterval(refreshStatus, 10000);
 </script>

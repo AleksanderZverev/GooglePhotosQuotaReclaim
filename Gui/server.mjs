@@ -445,6 +445,143 @@ async function opSaveAlbums() {
   } finally { cdp.close(); }
 }
 
+async function opScanFull({ albumIds } = {}) {
+  if (!albumIds?.length) {
+    const msg = 'No albums selected — select at least one album first';
+    log(msg, 'error');
+    return { ok: false, error: msg };
+  }
+  opStart('scan-full');
+  const cdp = await connectCdp();
+  try {
+    const tokens = await getTokens(cdp);
+    log(`Scanning... (account: ${tokens.path})`);
+
+    // Fetch album titles up front
+    const allAlbums = await listAllAlbums(cdp, tokens);
+    const albumTitleMap = new Map(allAlbums.map(a => [a.albumId, a.title]));
+
+    // Phase 1: Enumerate selected albums
+    const rawItems = [];
+    const albumToKeys = new Map();
+    for (const albumId of albumIds) {
+      const title = albumTitleMap.get(albumId) || albumId.slice(-8);
+      log(`Enumerating "${title}"...`);
+      const items = await enumerateAll(cdp, tokens, {
+        albumId,
+        onPage: (p, total) => log(`  Page ${p}: ${total} items`),
+      });
+      rawItems.push(...items);
+      albumToKeys.set(albumId, new Set(items.map(i => i?.[0]).filter(Boolean)));
+    }
+
+    // Dedup
+    const seen = new Set();
+    const uniqueItems = rawItems.filter(i => {
+      const k = i?.[0];
+      if (!k || seen.has(k)) return false;
+      seen.add(k); return true;
+    });
+
+    log(`${uniqueItems.length} unique items. Checking quota...`);
+    const dedupMap = new Map(uniqueItems.filter(i => i?.[0] && i?.[3]).map(i => [i[0], i[3]]));
+    const mediaKeys = uniqueItems.map(i => i?.[0]).filter(Boolean);
+    const quotaInfos = await batchQuotaInfo(cdp, tokens, mediaKeys);
+
+    const manifest = readManifest();
+    const existingKeys = new Set(manifest.map(m => m.mediaKey));
+    let added = 0;
+
+    for (const qi of quotaInfos) {
+      const mediaKey = qi?.[0];
+      const d = qi?.[1];
+      if (!mediaKey || existingKeys.has(mediaKey)) continue;
+      if (d?.[23] !== 2) continue;
+      const itemAlbums = [];
+      for (const [albumId, keys] of albumToKeys) {
+        if (keys.has(mediaKey)) itemAlbums.push({ albumId, albumTitle: albumTitleMap.get(albumId) || '' });
+      }
+      manifest.push({
+        mediaKey,
+        dedupKey: dedupMap.get(mediaKey) || null,
+        filename: d?.[3] ?? '',
+        sizeBytes: d?.[9] ?? 0,
+        consumesQuota: true,
+        isOriginalQuality: d?.[18] === 2,
+        albums: itemAlbums,
+      });
+      existingKeys.add(mediaKey);
+      added++;
+    }
+    writeManifest(manifest);
+    log(`Scan: ${added} new quota items. Total: ${manifest.filter(i => i.consumesQuota).length}`, 'success');
+
+    // Phase 2: Enrich
+    const needsEnrich = manifest.filter(i => !i.dedupKey);
+    if (needsEnrich.length > 0) {
+      log(`Enriching ${needsEnrich.length} items...`);
+      const targetKeys = new Set(needsEnrich.map(i => i.mediaKey));
+      const found = new Map();
+      let pageToken = null, page = 0;
+      do {
+        const payload = await callRpc(cdp, 'lcxiM', [pageToken, null, 500, null, 1, 1], tokens);
+        const items = payload?.[0] ?? [];
+        pageToken = payload?.[1] ?? null;
+        page++;
+        for (const item of items) {
+          const key = item?.[0], dk = item?.[3];
+          if (key && dk && targetKeys.has(key)) found.set(key, dk);
+        }
+        log(`  Page ${page}: ${found.size}/${targetKeys.size} found`);
+        if (found.size === targetKeys.size) break;
+      } while (pageToken);
+      let enriched = 0;
+      for (const item of manifest) {
+        if (found.has(item.mediaKey)) { item.dedupKey = found.get(item.mediaKey); enriched++; }
+      }
+      writeManifest(manifest);
+      const notFound = needsEnrich.length - enriched;
+      log(`Enriched ${enriched}${notFound ? `, ${notFound} not found (may be archived)` : ''}.`, 'success');
+    } else {
+      log('All items already have dedupKeys.', 'success');
+    }
+
+    // Phase 3: Check other albums for additional memberships
+    const targetSet = new Set(manifest.filter(i => i.consumesQuota).map(i => i.mediaKey));
+    const otherAlbums = allAlbums.filter(a => !albumIds.includes(a.albumId));
+    if (targetSet.size > 0 && otherAlbums.length > 0) {
+      log(`Checking ${otherAlbums.length} other albums for additional memberships...`);
+      const keyToItem = new Map(manifest.map(i => [i.mediaKey, i]));
+      let extraFound = 0;
+      for (const { albumId, title } of otherAlbums) {
+        const albumItems = await enumerateAll(cdp, tokens, { albumId });
+        for (const rawItem of albumItems) {
+          const key = rawItem?.[0];
+          if (!key || !targetSet.has(key)) continue;
+          const item = keyToItem.get(key);
+          if (!item) continue;
+          if (!item.albums) item.albums = [];
+          if (!item.albums.find(a => a.albumId === albumId)) {
+            item.albums.push({ albumId, albumTitle: title });
+            extraFound++;
+          }
+        }
+      }
+      if (extraFound > 0) { writeManifest(manifest); log(`Found ${extraFound} additional memberships.`, 'success'); }
+    }
+
+    const totalQuota = manifest.filter(i => i.consumesQuota).length;
+    const summary = `Done. ${totalQuota} quota items ready for processing.`;
+    log(summary, 'success');
+    opEnd('scan-full', true, summary);
+    return { ok: true, added };
+  } catch (err) {
+    log(`Scan failed: ${err.message}`, 'error');
+    opEnd('scan-full', false, err.message);
+    return { ok: false, error: err.message };
+  } finally { cdp.close(); }
+}
+
 async function opTrashReupload({ mediaKeys: filterKeys, saveAlbumsFirst = true } = {}) {
   opStart('trash-reupload');
   if (!checkAdb()) {
@@ -934,6 +1071,7 @@ async function handle(req, res) {
   }
 
   const ops = {
+    '/api/scan-full':       () => body.albumIds?.length ? opScanFull(body) : Promise.resolve({ error: 'albumIds required' }),
     '/api/scan':            () => opScan(body),
     '/api/enrich':          () => opEnrich(),
     '/api/save-albums':     () => opSaveAlbums(),
