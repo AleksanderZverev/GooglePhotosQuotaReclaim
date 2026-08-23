@@ -17,21 +17,22 @@ body { background: var(--bg); color: var(--text); font-family: system-ui, -apple
 /* Header */
 header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
 header h1 { font-size: 16px; font-weight: 600; flex: 1; }
-.badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; background: var(--border); }
+.badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; background: var(--border); cursor: pointer; user-select: none; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.badge:hover { filter: brightness(1.2); }
 .badge.ok { background: rgba(74,222,128,.15); color: var(--success); }
 .badge.bad { background: rgba(248,113,113,.15); color: var(--error); }
 .badge.warn { background: rgba(251,191,36,.15); color: var(--warn); }
-.dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-#accountSelect { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+#accountSelect { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; max-width: 200px; }
 
 /* Layout */
 main { display: grid; grid-template-columns: 280px 1fr; grid-template-rows: 1fr 220px; flex: 1; min-height: 0; gap: 0; }
 
 /* Sidebar */
 aside { grid-row: 1 / 3; border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-.sidebar-header { padding: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
-.sidebar-header span { flex: 1; font-weight: 600; font-size: 13px; }
-#loadAlbumsBtn { font-size: 12px; padding: 4px 10px; }
+.sidebar-header { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; }
+.sidebar-header span { font-weight: 600; font-size: 13px; }
+#loadAlbumsBtn { font-size: 12px; padding: 4px 10px; margin-left: auto; }
 #albumList { flex: 1; overflow-y: auto; padding: 8px; }
 .album-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; cursor: pointer; }
 .album-item:hover { background: rgba(255,255,255,.04); }
@@ -97,19 +98,34 @@ button.danger:hover:not(:disabled) { background: rgba(248,113,113,.25); }
 button.small { padding: 3px 10px; font-size: 12px; }
 
 /* Misc */
-.empty { color: var(--muted); font-size: 12px; padding: 20px; text-align: center; }
+.empty { color: var(--muted); font-size: 12px; padding: 20px; text-align: center; line-height: 1.7; }
+.empty b { color: var(--text); }
+.empty small { display: block; margin-top: 6px; font-size: 11px; }
 #opSummary { font-size: 12px; color: var(--muted); padding: 2px 0; min-height: 18px; }
 .sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* Help button */
+.help-btn { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--border); color: var(--muted); font-size: 10px; font-weight: 700; cursor: pointer; border: none; padding: 0; flex-shrink: 0; line-height: 1; }
+.help-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+
+/* Info popup */
+.popup-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 200; display: flex; align-items: center; justify-content: center; }
+.popup-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px 24px 20px; max-width: 440px; width: 90%; display: flex; flex-direction: column; gap: 14px; }
+.popup-title { font-size: 15px; font-weight: 700; }
+.popup-body { font-size: 13px; color: var(--muted); line-height: 1.8; }
+.popup-body b { color: var(--text); }
+.popup-body code { background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 4px; font-family: Consolas, 'Cascadia Code', monospace; font-size: 12px; }
+.popup-footer { display: flex; justify-content: flex-end; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>Google Photos Recovery</h1>
-  <div id="cdpBadge" class="badge bad"><div class="dot"></div> CDP</div>
-  <div id="adbBadge" class="badge bad"><div class="dot"></div> ADB</div>
+  <div id="cdpBadge" class="badge bad" title="Click to learn about CDP" onclick="showPopup('cdp')"><div class="dot"></div><span id="cdpLabel">CDP</span></div>
+  <div id="adbBadge" class="badge bad" title="Click to learn about ADB" onclick="showPopup('adb')"><div class="dot"></div> ADB</div>
   <label style="font-size:12px;color:var(--muted)">Account:</label>
-  <select id="accountSelect" title="Switch account">
+  <select id="accountSelect" title="Switch Google account">
     <option value="/u/0/">/u/0/</option>
     <option value="/u/1/">/u/1/</option>
     <option value="/u/2/">/u/2/</option>
@@ -117,8 +133,9 @@ button.small { padding: 3px 10px; font-size: 12px; }
   </select>
   <button class="small" onclick="switchAccount()">Switch</button>
   <div style="width:1px;height:20px;background:var(--border)"></div>
-  <button class="small primary" id="launchChromeBtn" onclick="launchChrome()" title="Open Chrome with debug port 9222 and temp profile">Launch Chrome</button>
-  <button class="small danger" id="deleteProfileBtn" onclick="deleteProfile()" title="Delete temp Chrome profile dir" style="display:none">Delete Profile</button>
+  <button class="small primary" id="launchChromeBtn" onclick="launchChrome()">Launch Chrome</button>
+  <button class="help-btn" onclick="showPopup('chrome')" title="What does Launch Chrome do?">?</button>
+  <button class="small danger" id="deleteProfileBtn" onclick="deleteProfile()" style="display:none">Delete Profile</button>
   <button class="small" onclick="refreshStatus()">↺</button>
 </header>
 
@@ -127,9 +144,10 @@ button.small { padding: 3px 10px; font-size: 12px; }
   <aside>
     <div class="sidebar-header">
       <span>Albums</span>
+      <button class="help-btn" onclick="showPopup('albums')" title="Where do albums come from?">?</button>
       <button class="small" id="loadAlbumsBtn" onclick="loadAlbums()">Load</button>
     </div>
-    <div id="albumList"><div class="empty">Click "Load" to fetch albums from Google Photos</div></div>
+    <div id="albumList"><div class="empty">Albums are loaded from <b>Google Photos in Chrome</b> — not from the Pixel.<br><br>Connect Chrome (green CDP badge) then click Load.</div></div>
     <div id="selCount"></div>
     <div class="sidebar-footer">
       <button class="small" onclick="selectAll()">All</button>
@@ -244,12 +262,73 @@ button.small { padding: 3px 10px; font-size: 12px; }
   </div>
 </main>
 
+<!-- Info popup -->
+<div id="popup-overlay" class="popup-overlay" onclick="closePopup()" style="display:none">
+  <div class="popup-box" onclick="event.stopPropagation()">
+    <div class="popup-title" id="popup-title"></div>
+    <div class="popup-body" id="popup-body"></div>
+    <div class="popup-footer">
+      <button class="small primary" onclick="closePopup()">Got it</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = '';
 let sse = null;
 let albums = [];
 let lastMatchedMediaKeys = [];
 let currentOp = null;
+
+// ── Popup ─────────────────────────────────────────────────────────────────────
+
+const POPUPS = {
+  cdp: {
+    title: 'CDP — Chrome DevTools Protocol',
+    body: `<b>CDP</b> is a debugging API built into Chrome. This app uses it to communicate with the open Google Photos tab — reading authentication tokens, making API calls on your behalf, and navigating between accounts.<br><br>
+<b>Green badge:</b> Chrome is running with <code>--remote-debugging-port=9222</code> and has a Google Photos tab open.<br><br>
+All library operations (Scan, Enrich, Trash, Verify) require an active CDP connection.`
+  },
+  adb: {
+    title: 'ADB — Android Debug Bridge',
+    body: `<b>ADB</b> is a tool for communicating with Android devices over USB. This app uses it to push photos to your Pixel 1's camera folder.<br><br>
+Google Photos on the Pixel then backs them up — and Pixel 1 has a permanent exemption that makes all uploads cost <b>zero quota</b>.<br><br>
+<b>Green badge:</b> Pixel 1 is connected via USB, USB debugging is authorized in Developer Options, and ADB can see the device.<br><br>
+ADB is only needed for the <b>Trash + Reupload</b> and <b>Cleanup Pixel</b> steps.`
+  },
+  chrome: {
+    title: 'Why launch Chrome?',
+    body: `All Google Photos API calls go through the browser — not directly from this app. This is because Google's API requires your <b>session cookies</b>, which only exist inside Chrome.<br><br>
+Clicking <b>Launch Chrome</b> opens a dedicated Chrome window with:<br>
+• Remote debugging enabled (port 9222)<br>
+• An isolated temporary profile<br><br>
+Sign into Google Photos in that window. The CDP badge turns green once connected.<br><br>
+If Chrome is already running with <code>--remote-debugging-port=9222</code>, you can skip this.`
+  },
+  albums: {
+    title: 'Where do albums come from?',
+    body: `Albums are fetched from <b>Google Photos via Chrome</b> — not from your Pixel or local files.<br><br>
+When you click Load, the app asks Chrome to fetch your album list using the same API the Google Photos website uses internally.<br><br>
+<b>Requirements:</b><br>
+• Chrome connected (green CDP badge)<br>
+• Google Photos tab open and signed in<br><br>
+<b>Note:</b> The Pixel is not involved here — it is only used in the Trash + Reupload step to re-upload files with zero quota cost.`
+  }
+};
+
+function showPopup(id) {
+  const p = POPUPS[id];
+  if (!p) return;
+  document.getElementById('popup-title').textContent = p.title;
+  document.getElementById('popup-body').innerHTML = p.body;
+  document.getElementById('popup-overlay').style.display = 'flex';
+}
+
+function closePopup() {
+  document.getElementById('popup-overlay').style.display = 'none';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePopup(); });
 
 // ── SSE ───────────────────────────────────────────────────────────────────────
 
@@ -281,13 +360,23 @@ async function refreshStatus() {
     const r = await fetch(`${API}/api/status`).then(r => r.json());
     const cdp = document.getElementById('cdpBadge');
     cdp.className = `badge ${r.cdpConnected ? 'ok' : 'bad'}`;
-    cdp.innerHTML = `<div class="dot"></div> CDP${r.account ? ` ${r.account}` : ''}`;
+    const displayName = r.accountEmail || (r.account && r.account !== '/' ? r.account : null);
+    document.getElementById('cdpLabel').textContent = displayName || 'CDP';
     const adb = document.getElementById('adbBadge');
     adb.className = `badge ${r.adbConnected ? 'ok' : 'warn'}`;
     adb.innerHTML = `<div class="dot"></div> ADB`;
     if (r.account) {
       const sel = document.getElementById('accountSelect');
-      for (const opt of sel.options) if (opt.value === r.account) { sel.value = r.account; break; }
+      for (const opt of sel.options) {
+        if (opt.value === r.account) {
+          sel.value = r.account;
+          if (r.accountEmail) {
+            const num = r.account.match(/\d+/)?.[0];
+            opt.textContent = `${r.accountEmail}${num !== undefined ? ` (${num})` : ''}`;
+          }
+          break;
+        }
+      }
     }
     if (r.manifest) updateStats(r.manifest);
     if (r.workDir) document.getElementById('workDirLabel').textContent = `Work: ${r.workDir}`;
@@ -331,11 +420,16 @@ async function loadAlbums() {
   btn.disabled = true;
   try {
     const r = await fetch(`${API}/api/albums`).then(r => r.json());
-    if (r.error) { appendLog(`Albums error: ${r.error}`, 'error'); return; }
+    if (r.error) {
+      document.getElementById('albumList').innerHTML = `<div class="empty" style="color:var(--error)">${r.error}</div>`;
+      appendLog(`Albums error: ${r.error}`, 'error');
+      return;
+    }
     albums = r.albums || [];
     renderAlbums();
     appendLog(`Loaded ${albums.length} albums.`, 'success');
   } catch (err) {
+    document.getElementById('albumList').innerHTML = `<div class="empty" style="color:var(--error)">Failed: ${err.message}</div>`;
     appendLog(`Failed to load albums: ${err.message}`, 'error');
   } finally {
     btn.textContent = 'Reload';
@@ -345,7 +439,10 @@ async function loadAlbums() {
 
 function renderAlbums() {
   const list = document.getElementById('albumList');
-  if (!albums.length) { list.innerHTML = '<div class="empty">No albums found</div>'; return; }
+  if (!albums.length) {
+    list.innerHTML = '<div class="empty">No albums found in this Google account.<br><small>Albums are fetched from Google Photos in Chrome — not from the Pixel.</small></div>';
+    return;
+  }
   list.innerHTML = albums.map(a => `
     <div class="album-item" onclick="toggleAlbum('${a.albumId}')">
       <input type="checkbox" id="alb-${a.albumId}" value="${a.albumId}" onchange="onAlbumChange()">

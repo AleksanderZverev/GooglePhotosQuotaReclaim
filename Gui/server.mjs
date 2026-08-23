@@ -20,6 +20,8 @@ const WORK_DIR = process.env.WORK_DIR || path.dirname(__dirname);
 const MANIFEST_FILE = path.join(WORK_DIR, 'manifest.json');
 const DOWNLOADS_DIR = path.join(WORK_DIR, 'downloads');
 
+let emailCache = { email: null, path: null, at: 0 };
+
 // ── SSE broadcast ─────────────────────────────────────────────────────────────
 
 const sseClients = new Set();
@@ -204,6 +206,33 @@ async function listAllAlbums(cdp, tokens) {
     pageToken = payload?.[1] ?? null;
   } while (pageToken);
   return albums;
+}
+
+async function tryGetAccountEmail(wsUrl) {
+  return new Promise(resolve => {
+    const done = v => { clearTimeout(t); resolve(v); };
+    const t = setTimeout(() => resolve(null), 3500);
+    let ws;
+    (async () => {
+      try {
+        ws = new WebSocket(wsUrl, { perMessageDeflate: false });
+        await new Promise((res, rej) => { ws.once('open', res); ws.once('error', rej); });
+        const tmp = new CdpSession(ws);
+        const email = await tmp.evaluate(`
+          (() => {
+            const el = document.querySelector('[data-email]');
+            if (el?.dataset?.email?.includes('@')) return el.dataset.email;
+            for (const e of document.querySelectorAll('[aria-label]')) {
+              const m = (e.getAttribute('aria-label') || '').match(/[\\w.+\\-]+@[\\w.\\-]+\\.\\w+/);
+              if (m) return m[0];
+            }
+            return null;
+          })()`);
+        tmp.close();
+        done(email);
+      } catch { try { ws?.close(); } catch {} done(null); }
+    })();
+  });
 }
 
 // ── ADB ──────────────────────────────────────────────────────────────────────
@@ -775,9 +804,23 @@ async function handle(req, res) {
         const m = photosTabs[0].url.match(/photos\.google\.com(\/u\/\d+\/)/);
         account = m?.[1] ?? '/';
       }
+      let accountEmail = null;
+      if (photosTabs.length > 0) {
+        const now = Date.now();
+        if (emailCache.path === account && now - emailCache.at < 30000) {
+          accountEmail = emailCache.email;
+        } else if (now - emailCache.at > 5000) {
+          const email = await tryGetAccountEmail(photosTabs[0].webSocketDebuggerUrl);
+          emailCache = { email, path: account, at: now };
+          accountEmail = email;
+        } else {
+          accountEmail = emailCache.email;
+        }
+      }
       return json(res, {
         cdpConnected: photosTabs.length > 0,
         account,
+        accountEmail,
         photosTabs: photosTabs.map(t => ({ url: t.url, title: t.title })),
         manifest: manifestStats(readManifest()),
         currentOp,
