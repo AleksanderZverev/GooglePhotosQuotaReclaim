@@ -332,7 +332,7 @@ async function opScan({ albumIds } = {}) {
       const d = qi?.[1];
       const inExisting = existingKeys.has(mediaKey);
       if (!mediaKey || inExisting) continue;
-      if (d?.[23] !== 1) continue;
+      if (d?.[23] !== 2) continue;
       manifest.push({
         mediaKey,
         dedupKey: dedupMap.get(mediaKey) || null,
@@ -603,14 +603,14 @@ async function opVerify() {
           const item = nameMap.get(fname);
           if (!item || item.verified !== undefined) continue;
           const d = qi?.[1];
-          if (d?.[23] !== 1 && d?.[18] === 2) {
+          if (d?.[23] !== 2 && d?.[18] === 2) {
             item.verified = true;
             item.newMediaKey = qi?.[0];
             item.verifiedAt = new Date().toISOString();
             verified.add(item.mediaKey);
           } else {
             item.verified = false;
-            item.verifyNote = d?.[23] === 1 ? 'Still takes space' : 'Not original quality';
+            item.verifyNote = d?.[23] === 2 ? 'Still takes space' : 'Not original quality';
           }
         }
       }
@@ -732,7 +732,7 @@ async function opMatchAlbums({ albumIds }) {
           dedupKey: dedupMap.get(mediaKey) || null,
           filename,
           sizeBytes: d?.[9] ?? 0,
-          consumesQuota: d?.[23] === 1,
+          consumesQuota: d?.[23] === 2,
           isOriginalQuality: d?.[18] === 2,
           downloaded: true,
           downloadedAs,
