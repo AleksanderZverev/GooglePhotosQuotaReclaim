@@ -188,43 +188,48 @@ async function batchQuotaInfo(cdp, tokens, mediaKeys) {
   return results;
 }
 
-function makeBatchExecuteExpr(tokens, rpcId, requestData) {
-  return `(async () => {
-    const t = ${JSON.stringify(tokens)};
-    const id = ${JSON.stringify(rpcId)};
-    const req = ${JSON.stringify(requestData)};
-    const wrapped = [[[id, JSON.stringify(req), null, 'generic']]];
-    const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrapped)) + '&at=' + encodeURIComponent(t.at) + '&';
-    const ps = new URLSearchParams({ rpcids: id, 'source-path': window.location.pathname, 'f.sid': t.fsid, bl: t.bl, pageId: 'none', rt: 'c' });
-    const url = 'https://photos.google.com' + t.path + 'data/batchexecute?' + ps;
-    const resp = await fetch(url, { method: 'POST', credentials: 'include', headers: {'content-type': 'application/x-www-form-urlencoded;charset=UTF-8'}, body });
-    const text = await resp.text();
-    const lines = text.split('\\n').filter(l => l.includes('wrb.fr'));
-    if (!lines.length) return { error: 'no envelope (status=' + resp.status + ')' };
-    try { const p = JSON.parse(lines[0]); return { ok: JSON.parse(p[0][2]) }; }
-    catch (e) { return { error: 'parse: ' + e.message }; }
-  })()`;
-}
-
 async function listAllAlbums(cdp, tokens) {
+  const albumsUrl = `https://photos.google.com${tokens.path}albums`;
+  const result = await cdp.evaluate(`
+    (async () => {
+      const resp = await fetch(${JSON.stringify(albumsUrl)}, { credentials: 'include' });
+      if (!resp.ok) return { error: 'HTTP ' + resp.status };
+      const html = await resp.text();
+      const marker = html.indexOf("key: 'ds:5'");
+      if (marker < 0) return { error: 'ds:5 block not found — are you signed in and on google.com/photos?' };
+      const dataPos = html.indexOf('data:', marker);
+      const start = dataPos >= 0 ? html.indexOf('[', dataPos) : -1;
+      if (start < 0) return { error: 'data array not found in ds:5 block' };
+      let depth = 0, inStr = false, strChar = 0, esc = false, end = -1;
+      for (let i = start; i < html.length; i++) {
+        const cc = html.charCodeAt(i);
+        if (esc) { esc = false; continue; }
+        if (inStr) { if (cc === 92) esc = true; else if (cc === strChar) inStr = false; }
+        else {
+          if (cc === 34 || cc === 39) { inStr = true; strChar = cc; }
+          else if (cc === 91 || cc === 123) depth++;
+          else if ((cc === 93 || cc === 125) && --depth === 0) { end = i; break; }
+        }
+      }
+      if (end < 0) return { error: 'bracket matching failed' };
+      try { return { data: JSON.parse(html.slice(start, end + 1)) }; }
+      catch (e) { return { error: 'JSON.parse: ' + e.message }; }
+    })()`);
+
+  if (result?.error) throw new Error(`Albums page: ${result.error}`);
   const albums = [];
-  let pageToken = null;
-  do {
-    const res = await cdp.evaluate(makeBatchExecuteExpr(tokens, 'F2A0H', [pageToken, null, 100]));
-    if (res?.error) throw new Error(`F2A0H: ${res.error}`);
-    const payload = res?.ok;
-    const page = Array.isArray(payload?.[0]) ? payload[0] : [];
-    if (!page.length) break;
-    for (const a of page) {
-      const albumId = a?.[0];
-      const title = (typeof a?.[2] === 'string' && a[2]) ||
-                    (typeof a?.[3] === 'string' && a[3]) ||
-                    `(untitled ${albumId?.slice(-6)})`;
-      const count = typeof a?.[8] === 'number' ? a[8] : null;
-      if (albumId) albums.push({ albumId, title, count });
-    }
-    pageToken = payload?.[1] ?? null;
-  } while (pageToken);
+  const entries = Array.isArray(result?.data?.[0]) ? result.data[0] : [];
+  for (const entry of entries) {
+    if (!Array.isArray(entry)) continue;
+    const albumId = entry[0];
+    if (!albumId || typeof albumId !== 'string') continue;
+    const infoObj = entry.find(e => e && typeof e === 'object' && !Array.isArray(e) && e['72930366']);
+    if (!infoObj) continue;
+    const info = infoObj['72930366'];
+    const title = typeof info?.[1] === 'string' ? info[1] : `(untitled ${albumId.slice(-6)})`;
+    const count = typeof info?.[3] === 'number' ? info[3] : null;
+    albums.push({ albumId, title, count });
+  }
   return albums;
 }
 
