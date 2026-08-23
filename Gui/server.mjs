@@ -166,12 +166,22 @@ async function enumerateAll(cdp, tokens, { albumId = null, mode = 1, onPage } = 
   let pageToken = null;
   let page = 0;
   do {
-    const payload = await callRpc(cdp, 'lcxiM', [pageToken, albumId, 500, null, mode, 1], tokens);
-    const pageItems = payload?.[0] ?? [];
-    pageToken = payload?.[1] ?? null;
+    let pageItems, nextToken;
+    if (albumId) {
+      // Album items: snAcKc [albumMediaKey, pageId, null, authKey] → payload[1]=items, payload[2]=nextPage
+      const payload = await callRpc(cdp, 'snAcKc', [albumId, pageToken, null, null], tokens);
+      pageItems = payload?.[1] ?? [];
+      nextToken = payload?.[2] ?? null;
+    } else {
+      // Library/archive: lcxiM [pageId, null, pageSize, null, mode, 1] → payload[0]=items, payload[1]=nextPage
+      const payload = await callRpc(cdp, 'lcxiM', [pageToken, null, 500, null, mode, 1], tokens);
+      pageItems = payload?.[0] ?? [];
+      nextToken = payload?.[1] ?? null;
+    }
     page++;
     items.push(...pageItems);
     if (onPage) await onPage(page, items.length, pageItems);
+    pageToken = nextToken;
   } while (pageToken);
   return items;
 }
