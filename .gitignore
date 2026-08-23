@@ -1,0 +1,9 @@
+node_modules/
+.browser-profile/
+downloads/
+manifest.json
+manifest.backup.json
+progress.json
+progress.backup.json
+quota-items-scan.json
+.DS_Store
