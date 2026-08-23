@@ -276,11 +276,11 @@ button.small { padding: 4px 12px; font-size: 12px; }
 </main>
 
 <!-- Info popup -->
-<div id="popup-overlay" class="popup-overlay" onclick="closePopup()" style="display:none">
+<div id="popup-overlay" class="popup-overlay" style="display:none">
   <div class="popup-box" onclick="event.stopPropagation()">
     <div class="popup-title" id="popup-title"></div>
     <div class="popup-body" id="popup-body"></div>
-    <div class="popup-footer">
+    <div class="popup-footer" id="popup-footer">
       <button class="small primary" onclick="closePopup()">Got it</button>
     </div>
   </div>
@@ -293,6 +293,8 @@ let albums = [];
 let currentOp = null;
 let manifestStats = {};
 const knownEmails = {};
+let modalDismissable = true;
+let awaitingPixelRestore = false;
 
 // ── Popup ─────────────────────────────────────────────────────────────────────
 
@@ -335,6 +337,25 @@ function showPopup(id) {
   if (!p) return;
   document.getElementById('popup-title').textContent = p.title;
   document.getElementById('popup-body').innerHTML = p.body;
+  document.getElementById('popup-footer').innerHTML = '<button class="small primary" onclick="closePopup()">Got it</button>';
+  modalDismissable = true;
+  document.getElementById('popup-overlay').style.display = 'flex';
+}
+
+function showModal({ title, body, buttons }) {
+  document.getElementById('popup-title').textContent = title;
+  document.getElementById('popup-body').innerHTML = body;
+  const footer = document.getElementById('popup-footer');
+  footer.innerHTML = '';
+  for (const btn of buttons) {
+    const el = document.createElement('button');
+    el.className = `small ${btn.cls || ''}`;
+    el.style.marginLeft = '8px';
+    el.textContent = btn.text;
+    el.onclick = () => { closePopup(); if (btn.action) btn.action(); };
+    footer.appendChild(el);
+  }
+  modalDismissable = false;
   document.getElementById('popup-overlay').style.display = 'flex';
 }
 
@@ -342,7 +363,10 @@ function closePopup() {
   document.getElementById('popup-overlay').style.display = 'none';
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closePopup(); });
+document.getElementById('popup-overlay').addEventListener('click', function(e) {
+  if (e.target === this && modalDismissable) closePopup();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && modalDismissable) closePopup(); });
 
 // ── SSE ───────────────────────────────────────────────────────────────────────
 
@@ -364,6 +388,19 @@ function connectSSE() {
       setStepDone(msg.name, msg.ok);
       updateButtonStates();
       if (msg.summary) appendLog(msg.ok ? `✓ ${msg.name}: ${msg.summary}` : `✗ ${msg.name}: ${msg.summary}`, msg.ok ? 'success' : 'error');
+      if (msg.name === 'trash-reupload' && awaitingPixelRestore) {
+        awaitingPixelRestore = false;
+        showModal({
+          title: '✓ Файлы залиты на Pixel — верни аккаунт',
+          body: `Файлы запушены на Pixel. Теперь верни Google-аккаунт, чтобы Photos начал бэкап:<br><br>
+            <b>1.</b> Открой <b>Google Photos</b> на Pixel<br>
+            <b>2.</b> Нажми <b>"Sign in"</b><br>
+            <b>3.</b> Войди в свой <b>Google-аккаунт</b><br><br>
+            Google Photos увидит новые файлы и загрузит их в облако бесплатно.<br><br>
+            Подожди 1–4 часа, потом нажми <b>Verify</b> (шаг 5).`,
+          buttons: [{ text: 'Понял, закрыть', cls: 'primary', action: () => {} }],
+        });
+      }
     }
   };
   sse.onerror = () => { setTimeout(connectSSE, 3000); };
@@ -634,17 +671,25 @@ async function runScanFull() {
 async function runTrashReupload() {
   if (currentOp) return;
   const emptyTrash = document.getElementById('chk-empty-trash').checked;
-  if (emptyTrash) {
-    const ok = confirm(
-      'Trash + Reupload with "Permanently delete from trash" enabled.\n\n' +
-      '⚠️ The processed files will be PERMANENTLY deleted from Google Photos trash immediately after trashing — this cannot be undone.\n\n' +
-      'Files NOT being processed will NOT be touched.\n\n' +
-      'Continue?'
-    );
-    if (!ok) return;
-  }
-  const r = await post('/api/trash-reupload', { emptyTrash });
-  if (r.error) appendLog(`Error: ${r.error}`, 'error');
+  const emptyTrashWarning = emptyTrash
+    ? `<br><div style="margin-top:10px;padding:8px 10px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:6px;font-size:12px;color:var(--error)">⚠️ "Permanently delete from trash" включено — файлы удалятся из корзины навсегда сразу после перемещения в неё.</div>`
+    : '';
+  showModal({
+    title: '⚠️ Перед запуском — действие на Pixel',
+    body: `Чтобы Google Photos не пометил залитые файлы как "уже загружены", сначала:<br><br>
+      <b>1.</b> Открой <b>Google Photos</b> на Pixel<br>
+      <b>2.</b> Нажми на аватарку (правый верхний угол)<br>
+      <b>3.</b> Выбери <b>"Use Photos without an account"</b><br><br>
+      После этого нажми <b>Готово, запустить</b>.${emptyTrashWarning}`,
+    buttons: [
+      { text: 'Отмена', cls: '', action: () => {} },
+      { text: 'Готово, запустить', cls: 'primary danger', action: async () => {
+        awaitingPixelRestore = true;
+        const r = await post('/api/trash-reupload', { emptyTrash });
+        if (r.error) appendLog(`Error: ${r.error}`, 'error');
+      }},
+    ],
+  });
 }
 
 async function matchAlbums() {

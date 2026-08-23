@@ -137,7 +137,7 @@ async function getTokens(cdp) {
   return t;
 }
 
-async function callRpc(cdp, rpcId, data, tokens) {
+async function callRpc(cdp, rpcId, data, tokens, { allowEmpty = false } = {}) {
   if (!tokens) tokens = await getTokens(cdp);
   // Build URL inside evaluate so source-path = window.location.pathname (same as original CLI scripts).
   // Using hardcoded '/photos' produces a different EWgK9e response format.
@@ -163,7 +163,10 @@ async function callRpc(cdp, rpcId, data, tokens) {
       return resp.text();
     })()`);
   const lines = text.split('\n').filter(l => l.includes('wrb.fr'));
-  if (!lines.length) throw new Error(`RPC ${rpcId}: empty response`);
+  if (!lines.length) {
+    if (allowEmpty) return null;
+    throw new Error(`RPC ${rpcId}: empty response`);
+  }
   const parsed = JSON.parse(lines[0]);
   return JSON.parse(parsed[0][2]);
 }
@@ -822,7 +825,22 @@ async function opRestoreAlbums() {
       log(`Album "${title}": ${aItems.length} items`);
       for (let i = 0; i < aItems.length; i += BATCH) {
         const batch = aItems.slice(i, i + BATCH);
-        await callRpc(cdp, 'zy2MWb', [albumId, batch.map(it => [it.newMediaKey])], tokens);
+        // E1Cajb: [[mediaKey, ...], albumId], source-path=/album/{albumId}
+        const raw = await cdp.evaluate(`
+          (async () => {
+            const rpcId = 'E1Cajb';
+            const data = [${JSON.stringify(batch.map(it => it.newMediaKey))}, ${JSON.stringify(albumId)}];
+            const wrapped = [[[rpcId, JSON.stringify(data), null, 'generic']]];
+            const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrapped)) + '&at=' + encodeURIComponent(${JSON.stringify(tokens.at)}) + '&';
+            const params = new URLSearchParams({ rpcids: rpcId, 'source-path': '/album/' + ${JSON.stringify(albumId)}, 'f.sid': ${JSON.stringify(tokens.fsid)}, bl: ${JSON.stringify(tokens.bl)}, pageId: 'none', rt: 'c' });
+            const resp = await fetch(${JSON.stringify(`https://photos.google.com${tokens.path}data/batchexecute?`)} + params, {
+              method: 'POST', credentials: 'include',
+              headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body,
+            });
+            const text = await resp.text();
+            return { status: resp.status, ok: !text.includes('"er"') };
+          })()`);
+        if (raw.status !== 200 || !raw.ok) throw new Error(`E1Cajb HTTP ${raw.status} hasError=${!raw.ok}`);
         totalRestored += batch.length;
       }
       for (const item of aItems) { item.albumsRestored = true; item.albumsRestoredAt = new Date().toISOString(); }
