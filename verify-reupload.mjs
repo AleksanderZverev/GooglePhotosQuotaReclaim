@@ -156,12 +156,12 @@ async function run() {
         const parsed = JSON.parse(lines[0]);
         const payload = JSON.parse(parsed[0][2]);
         return (payload?.[0]?.[1] || []).map(item => {
-          const lastArr = item?.[1]?.at(-1);
+          const d = item?.[1];
           return {
             mediaKey: item?.[0],
-            fileName: item?.[1]?.[3],
-            takesUpSpace: lastArr?.[0] === 1,
-            isOriginalQuality: lastArr?.[2] === 2,
+            fileName: d?.[3],
+            takesUpSpace: d?.[23] === 1,
+            isOriginalQuality: d?.[18] === 2,
           };
         });
       })()

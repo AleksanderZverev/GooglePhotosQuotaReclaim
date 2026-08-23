@@ -80,7 +80,7 @@ aside { grid-row: 1 / 3; border-right: 1px solid var(--border); display: flex; f
 .log-panel { border-top: 1px solid var(--border); background: #0a0c13; display: flex; flex-direction: column; overflow: hidden; }
 .log-header { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .log-header span { font-size: 12px; font-weight: 600; color: var(--muted); flex: 1; }
-#logOutput { flex: 1; overflow-y: auto; padding: 8px 12px; font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace; font-size: 12px; line-height: 1.6; }
+#logOutput { flex: 1; overflow-y: auto; padding: 8px 12px; font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
 .log-info { color: #94a3b8; }
 .log-success { color: var(--success); }
 .log-warn { color: var(--warn); }

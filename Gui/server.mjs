@@ -139,19 +139,26 @@ async function getTokens(cdp) {
 
 async function callRpc(cdp, rpcId, data, tokens) {
   if (!tokens) tokens = await getTokens(cdp);
-  const wrappedData = [[[rpcId, JSON.stringify(data), null, 'generic']]];
-  const body = `f.req=${encodeURIComponent(JSON.stringify(wrappedData))}&at=${encodeURIComponent(tokens.at)}&`;
-  const params = new URLSearchParams({
-    rpcids: rpcId, 'source-path': '/photos',
-    'f.sid': tokens.fsid, bl: tokens.bl, pageId: 'none', rt: 'c',
-  });
-  const url = `https://photos.google.com${tokens.path}data/batchexecute?${params}`;
+  // Build URL inside evaluate so source-path = window.location.pathname (same as original CLI scripts).
+  // Using hardcoded '/photos' produces a different EWgK9e response format.
   const text = await cdp.evaluate(`
     (async () => {
-      const resp = await fetch(${JSON.stringify(url)}, {
+      const rpcId = ${JSON.stringify(rpcId)};
+      const wrapped = [[[rpcId, ${JSON.stringify(JSON.stringify(data))}, null, 'generic']]];
+      const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrapped)) + '&at=' + encodeURIComponent(${JSON.stringify(tokens.at)}) + '&';
+      const params = new URLSearchParams({
+        rpcids: rpcId,
+        'source-path': window.location.pathname,
+        'f.sid': ${JSON.stringify(tokens.fsid)},
+        bl: ${JSON.stringify(tokens.bl)},
+        pageId: 'none',
+        rt: 'c',
+      });
+      const url = ${JSON.stringify(`https://photos.google.com${tokens.path}data/batchexecute?`)} + params;
+      const resp = await fetch(url, {
         method: 'POST', credentials: 'include',
         headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body: ${JSON.stringify(body)},
+        body,
       });
       return resp.text();
     })()`);
@@ -193,7 +200,8 @@ async function batchQuotaInfo(cdp, tokens, mediaKeys) {
   for (let i = 0; i < mediaKeys.length; i += BATCH) {
     const chunk = mediaKeys.slice(i, i + BATCH);
     const payload = await callRpc(cdp, 'EWgK9e', [[[chunk.map(k => [k])], [opts]]], tokens);
-    results.push(...(payload?.[0]?.[1] ?? []));
+    const batch = payload?.[0]?.[1] ?? [];
+    results.push(...batch);
   }
   return results;
 }
@@ -321,16 +329,17 @@ async function opScan({ albumIds } = {}) {
 
     for (const qi of quotaInfos) {
       const mediaKey = qi?.[0];
-      if (!mediaKey || existingKeys.has(mediaKey)) continue;
-      const lastArr = qi?.[1]?.at(-1);
-      if (lastArr?.[0] !== 1) continue;
+      const d = qi?.[1];
+      const inExisting = existingKeys.has(mediaKey);
+      if (!mediaKey || inExisting) continue;
+      if (d?.[23] !== 1) continue;
       manifest.push({
         mediaKey,
         dedupKey: dedupMap.get(mediaKey) || null,
-        filename: qi?.[1]?.[3] ?? '',
-        sizeBytes: lastArr?.[1] ?? 0,
+        filename: d?.[3] ?? '',
+        sizeBytes: d?.[9] ?? 0,
         consumesQuota: true,
-        isOriginalQuality: lastArr?.[2] === 2,
+        isOriginalQuality: d?.[18] === 2,
       });
       existingKeys.add(mediaKey);
       added++;
@@ -593,15 +602,15 @@ async function opVerify() {
           const fname = (qi?.[1]?.[3] ?? '').toLowerCase();
           const item = nameMap.get(fname);
           if (!item || item.verified !== undefined) continue;
-          const lastArr = qi?.[1]?.at(-1);
-          if (!lastArr?.[0] && lastArr?.[2] === 2) {
+          const d = qi?.[1];
+          if (d?.[23] !== 1 && d?.[18] === 2) {
             item.verified = true;
             item.newMediaKey = qi?.[0];
             item.verifiedAt = new Date().toISOString();
             verified.add(item.mediaKey);
           } else {
             item.verified = false;
-            item.verifyNote = lastArr?.[0] ? 'Still takes space' : 'Not original quality';
+            item.verifyNote = d?.[23] === 1 ? 'Still takes space' : 'Not original quality';
           }
         }
       }
@@ -711,7 +720,7 @@ async function opMatchAlbums({ albumIds }) {
         const matchedFile = downloadMap.get(filename.toLowerCase());
         if (!matchedFile) continue;
         matched++;
-        const lastArr = qi?.[1]?.at(-1);
+        const d = qi?.[1];
         const downloadedAs = path.join(DOWNLOADS_DIR, matchedFile);
         if (existingKeys.has(mediaKey)) {
           const existing = manifest.find(m => m.mediaKey === mediaKey);
@@ -722,9 +731,9 @@ async function opMatchAlbums({ albumIds }) {
           mediaKey,
           dedupKey: dedupMap.get(mediaKey) || null,
           filename,
-          sizeBytes: lastArr?.[1] ?? 0,
-          consumesQuota: lastArr?.[0] === 1,
-          isOriginalQuality: lastArr?.[2] === 2,
+          sizeBytes: d?.[9] ?? 0,
+          consumesQuota: d?.[23] === 1,
+          isOriginalQuality: d?.[18] === 2,
           downloaded: true,
           downloadedAs,
         });
