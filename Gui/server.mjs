@@ -582,21 +582,22 @@ async function opScanFull({ albumIds } = {}) {
   } finally { cdp.close(); }
 }
 
-async function permanentDeleteFromTrash(cdp, tokens, dedupKey) {
+async function permanentDeleteFromTrash(cdp, tokens, mediaKey) {
+  // RPC: VrseUb, source-path=/trash, payload: [mediaKey, null, null, 1]
   const r = await cdp.evaluate(`
     (async () => {
-      const d = [null, 2, [${JSON.stringify(dedupKey)}], 3];
-      const w = [[['XwAOJf', JSON.stringify(d), null, 'generic']]];
+      const d = [${JSON.stringify(mediaKey)}, null, null, 1];
+      const w = [[['VrseUb', JSON.stringify(d), null, 'generic']]];
       const body = 'f.req=' + encodeURIComponent(JSON.stringify(w)) + '&at=' + encodeURIComponent(${JSON.stringify(tokens.at)}) + '&';
-      const p = new URLSearchParams({ rpcids: 'XwAOJf', 'source-path': '/photos', 'f.sid': ${JSON.stringify(tokens.fsid)}, bl: ${JSON.stringify(tokens.bl)}, pageId: 'none', rt: 'c' });
+      const p = new URLSearchParams({ rpcids: 'VrseUb', 'source-path': '/trash', 'f.sid': ${JSON.stringify(tokens.fsid)}, bl: ${JSON.stringify(tokens.bl)}, rt: 'c' });
       const resp = await fetch(${JSON.stringify(`https://photos.google.com${tokens.path}data/batchexecute?`)} + p, {
         method: 'POST', credentials: 'include',
         headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body,
       });
       const t = await resp.text();
-      return { status: resp.status, hasError: t.includes('"er"'), body: t.slice(0, 200) };
+      return { status: resp.status, hasError: t.includes('"er"') };
     })()`);
-  if (r.status !== 200 || r.hasError) throw new Error(`permanent delete status=${r.status} hasError=${r.hasError}`);
+  if (r.status !== 200 || r.hasError) throw new Error(`VrseUb status=${r.status} hasError=${r.hasError}`);
 }
 
 async function opTrashReupload({ mediaKeys: filterKeys, saveAlbumsFirst = true, emptyTrash = false } = {}) {
@@ -687,7 +688,7 @@ async function opTrashReupload({ mediaKeys: filterKeys, saveAlbumsFirst = true, 
 
           if (emptyTrash) {
             try {
-              await permanentDeleteFromTrash(cdp, tokens, item.dedupKey);
+              await permanentDeleteFromTrash(cdp, tokens, item.mediaKey);
               log(`  Permanently deleted from trash: ${label}`);
             } catch (e) {
               log(`  Could not permanently delete from trash: ${e.message}`, 'warn');
