@@ -23,7 +23,6 @@ header h1 { font-size: 16px; font-weight: 600; flex: 1; }
 .badge.bad { background: rgba(248,113,113,.15); color: var(--error); }
 .badge.warn { background: rgba(251,191,36,.15); color: var(--warn); }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-#accountSelect { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; max-width: 200px; }
 
 /* Layout */
 main { display: grid; grid-template-columns: 260px 1fr; grid-template-rows: 1fr 200px; flex: 1; min-height: 0; }
@@ -127,38 +126,34 @@ button.small { padding: 4px 12px; font-size: 12px; }
 <body>
 
 <header>
-  <h1>Google Photos Recovery</h1>
+  <h1 id="app-title">Google Photos Recovery</h1>
   <div id="cdpBadge" class="badge bad" title="Click to learn about CDP" onclick="showPopup('cdp')"><div class="dot"></div><span id="cdpLabel">CDP</span></div>
   <div id="adbBadge" class="badge bad" title="Click to learn about ADB" onclick="showPopup('adb')"><div class="dot"></div> ADB</div>
-  <label style="font-size:12px;color:var(--muted)" title="Switches which Google account is active in the Chrome browser">Browser:</label>
-  <select id="accountSelect" title="Switch Google account in Chrome (not the Pixel)">
-    <option value="/u/0/">Account 0</option>
-    <option value="/u/1/">Account 1</option>
-    <option value="/u/2/">Account 2</option>
-    <option value="/u/3/">Account 3</option>
-  </select>
-  <button class="small" onclick="switchAccount()">Switch</button>
+  <div style="display:flex;gap:2px">
+    <button class="small primary" id="btn-lang-en" onclick="setLang('en')">EN</button>
+    <button class="small" id="btn-lang-ru" onclick="setLang('ru')">RU</button>
+  </div>
   <div style="width:1px;height:20px;background:var(--border)"></div>
   <button class="small primary" id="launchChromeBtn" onclick="launchChrome()">Launch Chrome</button>
-  <button class="help-btn" onclick="showPopup('chrome')" title="What does Launch Chrome do?">?</button>
+  <button class="help-btn" onclick="showPopup('chrome')" title="?">?</button>
   <button class="small danger" id="deleteProfileBtn" onclick="deleteProfile()" style="display:none">Delete Profile</button>
   <button class="small" onclick="refreshStatus()">↺</button>
-  <button class="small danger" onclick="resetManifest()" title="Delete manifest.json and reset all step states">Reset</button>
+  <button class="small danger" id="btn-reset" onclick="resetManifest()">Reset</button>
 </header>
 
 <main>
   <!-- Sidebar: Albums -->
   <aside>
     <div class="sidebar-header">
-      <span>Albums</span>
-      <button class="help-btn" onclick="showPopup('albums')" title="Where do albums come from?">?</button>
+      <span id="sidebar-albums-title">Albums</span>
+      <button class="help-btn" onclick="showPopup('albums')" title="?">?</button>
       <button class="small" id="loadAlbumsBtn" onclick="loadAlbums()">Load</button>
     </div>
-    <div id="albumList"><div class="empty">Albums are loaded from <b>Google Photos in Chrome</b> — not from the Pixel.<br><br>Connect Chrome (green CDP badge) then click Load.</div></div>
+    <div id="albumList"><div class="empty" id="albumListEmpty">Albums are loaded from <b>Google Photos in Chrome</b> — not from the Pixel.<br><br>Connect Chrome (green CDP badge) then click Load.</div></div>
     <div class="sidebar-footer">
       <span id="selCount"></span>
-      <button class="small" onclick="selectAll()">All</button>
-      <button class="small" onclick="selectNone()">None</button>
+      <button class="small" id="btn-select-all" onclick="selectAll()">All</button>
+      <button class="small" id="btn-select-none" onclick="selectNone()">None</button>
     </div>
   </aside>
 
@@ -166,16 +161,16 @@ button.small { padding: 4px 12px; font-size: 12px; }
   <div class="content">
     <!-- Stats -->
     <div>
-      <div class="section-title">Manifest Stats</div>
+      <div class="section-title" id="stat-section-title">Manifest Stats</div>
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total items</div><div class="stat-value" id="sTotal">—</div></div>
-        <div class="stat-card"><div class="stat-label">Quota (takes space)</div><div class="stat-value quota" id="sQuota">—</div></div>
-        <div class="stat-card"><div class="stat-label">Downloaded</div><div class="stat-value" id="sDownloaded">—</div></div>
-        <div class="stat-card"><div class="stat-label">Enriched (dedupKey)</div><div class="stat-value" id="sEnriched">—</div></div>
-        <div class="stat-card"><div class="stat-label">Albums saved</div><div class="stat-value" id="sAlbumsSaved">—</div></div>
-        <div class="stat-card"><div class="stat-label">Trashed + pushed</div><div class="stat-value trashed" id="sTrashed">—</div></div>
-        <div class="stat-card"><div class="stat-label">Verified</div><div class="stat-value verified" id="sVerified">—</div></div>
-        <div class="stat-card"><div class="stat-label">Albums restored</div><div class="stat-value" id="sRestored">—</div></div>
+        <div class="stat-card"><div class="stat-label" id="stat-label-total">Total items</div><div class="stat-value" id="sTotal">—</div></div>
+        <div class="stat-card"><div class="stat-label" id="stat-label-quota">Quota (takes space)</div><div class="stat-value quota" id="sQuota">—</div></div>
+        <div class="stat-card"><div class="stat-label" id="stat-label-downloaded">Downloaded</div><div class="stat-value" id="sDownloaded">—</div></div>
+        <div class="stat-card"><div class="stat-label" id="stat-label-enriched">Enriched (dedupKey)</div><div class="stat-value" id="sEnriched">—</div></div>
+        <div class="stat-card"><div class="stat-label" id="stat-label-albums-saved">Albums saved</div><div class="stat-value" id="sAlbumsSaved">—</div></div>
+        <div class="stat-card"><div class="stat-label" id="stat-label-trashed">Trashed + pushed</div><div class="stat-value trashed" id="sTrashed">—</div></div>
+        <div class="stat-card"><div class="stat-label" id="stat-label-verified">Verified</div><div class="stat-value verified" id="sVerified">—</div></div>
+        <div class="stat-card"><div class="stat-label" id="stat-label-restored">Albums restored</div><div class="stat-value" id="sRestored">—</div></div>
       </div>
       <div style="margin-top:6px;display:flex;gap:8px;align-items:center">
         <span id="workDirLabel" style="font-size:11px;color:var(--muted)"></span>
@@ -185,14 +180,14 @@ button.small { padding: 4px 12px; font-size: 12px; }
 
     <!-- Pipeline -->
     <div>
-      <div class="section-title">Pipeline</div>
+      <div class="section-title" id="pipeline-section-title">Pipeline</div>
       <div class="pipeline">
 
         <div class="step">
           <div class="step-num" id="snum-1">1</div>
           <div class="step-info">
-            <div class="step-name">Select Albums</div>
-            <div class="step-desc">Choose albums in the sidebar to process</div>
+            <div class="step-name" id="step1-name">Select Albums</div>
+            <div class="step-desc" id="step1-desc">Choose albums in the sidebar to process</div>
             <div class="step-stat pending" id="sstat-1">No albums selected</div>
           </div>
         </div>
@@ -200,8 +195,8 @@ button.small { padding: 4px 12px; font-size: 12px; }
         <div class="step">
           <div class="step-num" id="snum-2">2</div>
           <div class="step-info">
-            <div class="step-name">Scan & Prepare</div>
-            <div class="step-desc">Find quota items · get dedupKeys · save album memberships</div>
+            <div class="step-name" id="step2-name">Scan &amp; Prepare</div>
+            <div class="step-desc" id="step2-desc">Find quota items · get dedupKeys · save album memberships</div>
             <div class="step-stat pending" id="sstat-2">Select albums first</div>
           </div>
           <button class="small primary step-btn" id="btn-scan-full" onclick="runScanFull()" disabled>Scan</button>
@@ -210,8 +205,8 @@ button.small { padding: 4px 12px; font-size: 12px; }
         <div class="step">
           <div class="step-num" id="snum-3">3</div>
           <div class="step-info">
-            <div class="step-name">Match Downloads</div>
-            <div class="step-desc">Link files in ./downloads/ to manifest items</div>
+            <div class="step-name" id="step3-name">Match Downloads</div>
+            <div class="step-desc" id="step3-desc">Link files in ./downloads/ to manifest items</div>
             <div class="step-stat pending" id="sstat-3">Scan first</div>
           </div>
           <button class="small step-btn" id="btn-match" onclick="matchAlbums()" disabled>Match</button>
@@ -220,22 +215,22 @@ button.small { padding: 4px 12px; font-size: 12px; }
         <div class="step">
           <div class="step-num" id="snum-4">4</div>
           <div class="step-info">
-            <div class="step-name">Trash + Reupload</div>
-            <div class="step-desc">Delete from cloud · push to Pixel · <span style="color:var(--error)">irreversible</span></div>
+            <div class="step-name" id="step4-name">Trash + Reupload</div>
+            <div class="step-desc" id="step4-desc">Delete from cloud · push to Pixel · <span style="color:var(--error)">irreversible</span></div>
             <div class="step-stat pending" id="sstat-4">Match downloads first</div>
             <label class="step-extra">
               <input type="checkbox" id="chk-empty-trash">
-              Permanently delete from trash after trashing (prevents auto-trash on re-upload)
+              <span id="chk-empty-trash-label">Permanently delete from trash after trashing (prevents auto-trash on re-upload)</span>
             </label>
           </div>
-          <button class="small danger step-btn" id="btn-trash-reupload" onclick="runTrashReupload()" disabled>Trash & Push</button>
+          <button class="small danger step-btn" id="btn-trash-reupload" onclick="runTrashReupload()" disabled>Trash &amp; Push</button>
         </div>
 
         <div class="step">
           <div class="step-num" id="snum-5">5</div>
           <div class="step-info">
-            <div class="step-name">Verify</div>
-            <div class="step-desc">Wait 1–4 h for Pixel backup, then confirm quota freed</div>
+            <div class="step-name" id="step5-name">Verify</div>
+            <div class="step-desc" id="step5-desc">Wait 1–4 h for Pixel backup, then confirm quota freed</div>
             <div class="step-stat pending" id="sstat-5">Trash + reupload first</div>
           </div>
           <button class="small step-btn" id="btn-verify" onclick="runOp('verify')" disabled>Verify</button>
@@ -244,8 +239,8 @@ button.small { padding: 4px 12px; font-size: 12px; }
         <div class="step">
           <div class="step-num" id="snum-6">6</div>
           <div class="step-info">
-            <div class="step-name">Restore Albums</div>
-            <div class="step-desc">Put photos back into their original albums</div>
+            <div class="step-name" id="step6-name">Restore Albums</div>
+            <div class="step-desc" id="step6-desc">Put photos back into their original albums</div>
             <div class="step-stat pending" id="sstat-6">Verify first</div>
           </div>
           <button class="small step-btn" id="btn-restore-albums" onclick="runOp('restore-albums')" disabled>Restore</button>
@@ -254,8 +249,8 @@ button.small { padding: 4px 12px; font-size: 12px; }
         <div class="step">
           <div class="step-num" id="snum-7">7</div>
           <div class="step-info">
-            <div class="step-name">Cleanup Pixel</div>
-            <div class="step-desc">Remove pushed files from /sdcard/DCIM/Camera/</div>
+            <div class="step-name" id="step7-name">Cleanup Pixel</div>
+            <div class="step-desc" id="step7-desc">Remove pushed files from /sdcard/DCIM/Camera/</div>
             <div class="step-stat pending" id="sstat-7">Trash + reupload first</div>
           </div>
           <button class="small danger step-btn" id="btn-cleanup-pixel" onclick="runOp('cleanup-pixel')" disabled>Cleanup</button>
@@ -268,8 +263,8 @@ button.small { padding: 4px 12px; font-size: 12px; }
   <!-- Log -->
   <div class="log-panel">
     <div class="log-header">
-      <span>Log</span>
-      <button class="small" onclick="clearLog()">Clear</button>
+      <span id="log-title">Log</span>
+      <button class="small" id="btn-clear-log" onclick="clearLog()">Clear</button>
     </div>
     <div id="logOutput"></div>
   </div>
@@ -292,52 +287,402 @@ let sse = null;
 let albums = [];
 let currentOp = null;
 let manifestStats = {};
-const knownEmails = {};
 let modalDismissable = true;
 let awaitingPixelRestore = false;
 
-// ── Popup ─────────────────────────────────────────────────────────────────────
+// ── i18n ─────────────────────────────────────────────────────────────────────
 
-const POPUPS = {
-  cdp: {
-    title: 'CDP — Chrome DevTools Protocol',
-    body: `<b>CDP</b> is a debugging API built into Chrome. This app uses it to communicate with the open Google Photos tab — reading authentication tokens, making API calls on your behalf, and navigating between accounts.<br><br>
+let lang = localStorage.getItem('lang') || 'en';
+
+const LANGS = {
+  en: {
+    appTitle: 'Google Photos Recovery',
+    launchChrome: 'Launch Chrome',
+    deleteProfile: 'Delete Profile',
+    reset: 'Reset',
+
+    albums: 'Albums',
+    albumsEmpty: 'Albums are loaded from <b>Google Photos in Chrome</b> — not from the Pixel.<br><br>Connect Chrome (green CDP badge) then click Load.',
+    albumsNone: 'No albums found in this Google account.<br><small>Albums are fetched from Google Photos in Chrome.</small>',
+    load: 'Load',
+    reload: 'Reload',
+    all: 'All',
+    none: 'None',
+    selectedCount: (n) => `${n} selected`,
+
+    manifestStats: 'Manifest Stats',
+    statTotal: 'Total items',
+    statQuota: 'Quota (takes space)',
+    statDownloaded: 'Downloaded',
+    statEnriched: 'Enriched (dedupKey)',
+    statAlbumsSaved: 'Albums saved',
+    statTrashed: 'Trashed + pushed',
+    statVerified: 'Verified',
+    statRestored: 'Albums restored',
+
+    pipeline: 'Pipeline',
+
+    step1Name: 'Select Albums',
+    step1Desc: 'Choose albums in the sidebar to process',
+    step1Pending: 'No albums selected',
+    step1Ready: (n) => `${n} album${n > 1 ? 's' : ''} selected`,
+
+    step2Name: 'Scan & Prepare',
+    step2Desc: 'Find quota items · get dedupKeys · save album memberships',
+    step2Pending1: 'Select albums first',
+    step2Pending2: 'Ready to scan',
+    step2Done: (n) => `${n} quota item${n > 1 ? 's' : ''} found`,
+    btnScan: 'Scan',
+
+    step3Name: 'Match Downloads',
+    step3Desc: 'Link files in ./downloads/ to manifest items',
+    step3Pending1: 'Scan first',
+    step3Pending2: 'Place files in ./downloads/, then match',
+    step3Done: (n, total) => `${n}/${total} files matched`,
+    btnMatch: 'Match',
+
+    step4Name: 'Trash + Reupload',
+    step4Desc: 'Delete from cloud · push to Pixel · ',
+    step4Irreversible: 'irreversible',
+    step4Pending1: 'Match downloads first',
+    step4Pending2: (n) => `${n} items ready`,
+    step4Done: (n) => `${n} items pushed to Pixel`,
+    chkEmptyTrash: 'Permanently delete from trash after trashing (prevents auto-trash on re-upload)',
+    btnTrash: 'Trash & Push',
+
+    step5Name: 'Verify',
+    step5Desc: 'Wait 1–4 h for Pixel backup, then confirm quota freed',
+    step5Pending1: 'Trash + reupload first',
+    step5Pending2: 'Wait for Pixel backup, then verify',
+    step5Done: (n, total) => `${n}/${total} verified`,
+    btnVerify: 'Verify',
+
+    step6Name: 'Restore Albums',
+    step6Desc: 'Put photos back into their original albums',
+    step6Pending1: 'Verify first',
+    step6Pending2: (n) => `${n} items ready`,
+    step6Done: (n) => `${n} items restored`,
+    btnRestore: 'Restore',
+
+    step7Name: 'Cleanup Pixel',
+    step7Desc: 'Remove pushed files from /sdcard/DCIM/Camera/',
+    step7Pending: 'Trash + reupload first',
+    step7Ready: (n) => `${n} files on Pixel to clean`,
+    btnCleanup: 'Cleanup',
+
+    logTitle: 'Log',
+    logClear: 'Clear',
+
+    modalTrashTitle: '⚠️ Action required on Pixel before starting',
+    modalTrashBody: (warning) => `To prevent Google Photos from marking the uploaded files as "already uploaded", first:<br><br>
+      <b>1.</b> Open <b>Google Photos</b> on the Pixel<br>
+      <b>2.</b> Tap the avatar (top right corner)<br>
+      <b>3.</b> Select <b>"Use Photos without an account"</b><br><br>
+      Then click <b>Ready, start</b>.${warning}`,
+    modalTrashEmptyWarning: `<br><div style="margin-top:10px;padding:8px 10px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:6px;font-size:12px;color:var(--error)">⚠️ "Permanently delete from trash" is enabled — files will be permanently removed from trash immediately after being moved there.</div>`,
+    modalTrashCancel: 'Cancel',
+    modalTrashConfirm: 'Ready, start',
+
+    modalAfterTrashTitle: '✓ Files pushed to Pixel — restore account',
+    modalAfterTrashBody: `Files have been pushed to the Pixel. Now restore the Google account so Photos can start the backup:<br><br>
+      <b>1.</b> Open <b>Google Photos</b> on the Pixel<br>
+      <b>2.</b> Tap <b>"Sign in"</b><br>
+      <b>3.</b> Sign in with your <b>Google account</b><br><br>
+      <div style="padding:8px 10px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:6px;font-size:12px;color:var(--warn)">⚠️ If an account is already selected — Google may immediately ask about enabling sync. Switch to the same account that was chosen in the previous step and agree to sync.</div><br>
+      Google Photos will see the new files and upload them to the cloud for free.<br><br>
+      Wait 1–4 hours, then click <b>Verify</b> (step 5).`,
+    modalAfterTrashClose: 'Got it, close',
+
+    modalAfterCleanupTitle: '✓ Folder cleaned',
+    modalAfterCleanupBody: `Files were deleted via ADB, but <b>Google Files</b> and <b>Google Photos</b> on the Pixel may still show them in the list — this is normal.<br><br>
+      Android uses a media index that doesn't update instantly. The files are physically gone, so trying to delete them from the app will give an error <i>"failed to delete"</i>.<br><br>
+      <b>What to do:</b> simply reboot the Pixel — after reboot the media index will rescan and the "ghosts" will disappear.`,
+    modalAfterCleanupClose: 'Got it',
+
+    popupCdpTitle: 'CDP — Chrome DevTools Protocol',
+    popupCdpBody: `<b>CDP</b> is a debugging API built into Chrome. This app uses it to communicate with the open Google Photos tab — reading authentication tokens, making API calls on your behalf, and navigating between accounts.<br><br>
 <b>Green badge:</b> Chrome is running with <code>--remote-debugging-port=9222</code> and has a Google Photos tab open.<br><br>
-All library operations (Scan, Enrich, Trash, Verify) require an active CDP connection.`
-  },
-  adb: {
-    title: 'ADB — Android Debug Bridge',
-    body: `<b>ADB</b> is a tool for communicating with Android devices over USB. This app uses it to push photos to your Pixel 1's camera folder.<br><br>
+All library operations (Scan, Enrich, Trash, Verify) require an active CDP connection.`,
+
+    popupAdbTitle: 'ADB — Android Debug Bridge',
+    popupAdbBody: `<b>ADB</b> is a tool for communicating with Android devices over USB. This app uses it to push photos to your Pixel 1's camera folder.<br><br>
 Google Photos on the Pixel then backs them up — and Pixel 1 has a permanent exemption that makes all uploads cost <b>zero quota</b>.<br><br>
 <b>Green badge:</b> Pixel 1 is connected via USB, USB debugging is authorized in Developer Options, and ADB can see the device.<br><br>
-ADB is only needed for the <b>Trash + Reupload</b> and <b>Cleanup Pixel</b> steps.`
-  },
-  chrome: {
-    title: 'Why launch Chrome?',
-    body: `All Google Photos API calls go through the browser — not directly from this app. This is because Google's API requires your <b>session cookies</b>, which only exist inside Chrome.<br><br>
+ADB is only needed for the <b>Trash + Reupload</b> and <b>Cleanup Pixel</b> steps.`,
+
+    popupChromeTitle: 'Why launch Chrome?',
+    popupChromeBody: `All Google Photos API calls go through the browser — not directly from this app. This is because Google's API requires your <b>session cookies</b>, which only exist inside Chrome.<br><br>
 Clicking <b>Launch Chrome</b> opens a dedicated Chrome window with:<br>
 • Remote debugging enabled (port 9222)<br>
 • An isolated temporary profile<br><br>
 Sign into Google Photos in that window. The CDP badge turns green once connected.<br><br>
-If Chrome is already running with <code>--remote-debugging-port=9222</code>, you can skip this.`
-  },
-  albums: {
-    title: 'Where do albums come from?',
-    body: `Albums are fetched from <b>Google Photos via Chrome</b> — not from your Pixel or local files.<br><br>
+If Chrome is already running with <code>--remote-debugging-port=9222</code>, you can skip this.`,
+
+    popupAlbumsTitle: 'Where do albums come from?',
+    popupAlbumsBody: `Albums are fetched from <b>Google Photos via Chrome</b> — not from your Pixel or local files.<br><br>
 When you click Load, the app asks Chrome to fetch your album list using the same API the Google Photos website uses internally.<br><br>
 <b>Requirements:</b><br>
 • Chrome connected (green CDP badge)<br>
 • Google Photos tab open and signed in<br><br>
-<b>Note:</b> The Pixel is not involved here — it is only used in the Trash + Reupload step to re-upload files with zero quota cost.`
+<b>Note:</b> The Pixel is not involved here — it is only used in the Trash + Reupload step to re-upload files with zero quota cost.`,
+
+    albumsLoaded: (n) => `Loaded ${n} albums.`,
+    albumsError: (e) => `Albums error: ${e}`,
+    albumsFailed: (e) => `Failed to load albums: ${e}`,
+    chromeLaunched: (dir) => `Chrome launched. Profile: ${dir}`,
+    chromeFailed: (e) => `Chrome launch failed: ${e}`,
+    profileDeleted: (p) => `Profile deleted: ${p}`,
+    profileDeleteFailed: (e) => `Delete failed: ${e}`,
+    manifestReset: 'Manifest reset.',
+    confirmReset: 'Delete manifest.json and reset all step states?\n\nDownloaded files will NOT be deleted.',
+    confirmDeleteProfile: (label, dir) => `Delete Chrome profile${label}?\n${dir}\n\nMake sure Chrome is closed.`,
+    gotIt: 'Got it',
+  },
+
+  ru: {
+    appTitle: 'Google Photos Recovery',
+    launchChrome: 'Запустить Chrome',
+    deleteProfile: 'Удалить профиль',
+    reset: 'Сброс',
+
+    albums: 'Альбомы',
+    albumsEmpty: 'Альбомы загружаются из <b>Google Photos в Chrome</b> — не с Pixel.<br><br>Подключи Chrome (зелёный CDP) и нажми «Загрузить».',
+    albumsNone: 'Альбомы не найдены в этом Google-аккаунте.<br><small>Альбомы загружаются из Google Photos в Chrome.</small>',
+    load: 'Загрузить',
+    reload: 'Обновить',
+    all: 'Все',
+    none: 'Нет',
+    selectedCount: (n) => `Выбрано: ${n}`,
+
+    manifestStats: 'Статистика',
+    statTotal: 'Всего',
+    statQuota: 'Занимают квоту',
+    statDownloaded: 'Скачано',
+    statEnriched: 'Enriched (dedupKey)',
+    statAlbumsSaved: 'Альбомы сохранены',
+    statTrashed: 'Удалено + залито',
+    statVerified: 'Проверено',
+    statRestored: 'Альбомы восстановлены',
+
+    pipeline: 'Шаги',
+
+    step1Name: 'Выбрать альбомы',
+    step1Desc: 'Выбери альбомы в панели слева',
+    step1Pending: 'Альбомы не выбраны',
+    step1Ready: (n) => `Выбрано альбомов: ${n}`,
+
+    step2Name: 'Сканировать',
+    step2Desc: 'Найти квотные элементы · получить dedupKey · сохранить альбомы',
+    step2Pending1: 'Сначала выбери альбомы',
+    step2Pending2: 'Готово к сканированию',
+    step2Done: (n) => `Найдено квотных: ${n}`,
+    btnScan: 'Сканировать',
+
+    step3Name: 'Привязать загрузки',
+    step3Desc: 'Связать файлы из ./downloads/ с элементами манифеста',
+    step3Pending1: 'Сначала сканируй',
+    step3Pending2: 'Положи файлы в ./downloads/, затем привяжи',
+    step3Done: (n, total) => `Привязано: ${n}/${total}`,
+    btnMatch: 'Привязать',
+
+    step4Name: 'Удалить + залить',
+    step4Desc: 'Удалить из облака · загрузить на Pixel · ',
+    step4Irreversible: 'необратимо',
+    step4Pending1: 'Сначала привяжи загрузки',
+    step4Pending2: (n) => `Готово: ${n} элементов`,
+    step4Done: (n) => `Залито на Pixel: ${n}`,
+    chkEmptyTrash: 'Постоянно удалять из корзины (предотвращает авто-удаление при перезаливке)',
+    btnTrash: 'Удалить и залить',
+
+    step5Name: 'Проверить',
+    step5Desc: 'Подожди 1–4 ч бэкап Pixel, затем подтверди освобождение квоты',
+    step5Pending1: 'Сначала удали + залей',
+    step5Pending2: 'Жди бэкап Pixel, потом проверяй',
+    step5Done: (n, total) => `Проверено: ${n}/${total}`,
+    btnVerify: 'Проверить',
+
+    step6Name: 'Восстановить альбомы',
+    step6Desc: 'Вернуть фото в исходные альбомы',
+    step6Pending1: 'Сначала проверь',
+    step6Pending2: (n) => `Готово: ${n} элементов`,
+    step6Done: (n) => `Восстановлено: ${n}`,
+    btnRestore: 'Восстановить',
+
+    step7Name: 'Очистить Pixel',
+    step7Desc: 'Удалить залитые файлы из /sdcard/DCIM/Camera/',
+    step7Pending: 'Сначала удали + залей',
+    step7Ready: (n) => `${n} файлов на Pixel для очистки`,
+    btnCleanup: 'Очистить',
+
+    logTitle: 'Лог',
+    logClear: 'Очистить',
+
+    modalTrashTitle: '⚠️ Перед запуском — действие на Pixel',
+    modalTrashBody: (warning) => `Чтобы Google Photos не пометил залитые файлы как «уже загружены», сначала:<br><br>
+      <b>1.</b> Открой <b>Google Photos</b> на Pixel<br>
+      <b>2.</b> Нажми на аватарку (правый верхний угол)<br>
+      <b>3.</b> Выбери <b>«Use Photos without an account»</b><br><br>
+      После этого нажми <b>Готово, запустить</b>.${warning}`,
+    modalTrashEmptyWarning: `<br><div style="margin-top:10px;padding:8px 10px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:6px;font-size:12px;color:var(--error)">⚠️ «Постоянно удалять из корзины» включено — файлы удалятся из корзины навсегда сразу после перемещения в неё.</div>`,
+    modalTrashCancel: 'Отмена',
+    modalTrashConfirm: 'Готово, запустить',
+
+    modalAfterTrashTitle: '✓ Файлы залиты на Pixel — верни аккаунт',
+    modalAfterTrashBody: `Файлы запушены на Pixel. Теперь верни Google-аккаунт, чтобы Photos начал бэкап:<br><br>
+      <b>1.</b> Открой <b>Google Photos</b> на Pixel<br>
+      <b>2.</b> Нажми <b>«Sign in»</b><br>
+      <b>3.</b> Войди в свой <b>Google-аккаунт</b><br><br>
+      <div style="padding:8px 10px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:6px;font-size:12px;color:var(--warn)">⚠️ Если аккаунт уже выбран — Google может сразу спросить про включение синхронизации. Переключись на тот аккаунт, который был выбран на предыдущем шаге, и согласись на синхронизацию.</div><br>
+      Google Photos увидит новые файлы и загрузит их в облако бесплатно.<br><br>
+      Подожди 1–4 часа, потом нажми <b>Проверить</b> (шаг 5).`,
+    modalAfterTrashClose: 'Понял, закрыть',
+
+    modalAfterCleanupTitle: '✓ Папка очищена',
+    modalAfterCleanupBody: `Файлы удалены через ADB, но <b>Google Files</b> и <b>Google Photos</b> на Pixel могут ещё показывать их в списке — это нормально.<br><br>
+      Android использует медиаиндекс, который не обновляется мгновенно. Файлов физически уже нет, поэтому при попытке удалить их из приложения будет ошибка <i>«не удалось удалить»</i>.<br><br>
+      <b>Что делать:</b> просто перезагрузи Pixel — после перезагрузки медиаиндекс пересканируется и «призраки» исчезнут.`,
+    modalAfterCleanupClose: 'Понял',
+
+    popupCdpTitle: 'CDP — Chrome DevTools Protocol',
+    popupCdpBody: `<b>CDP</b> — отладочный API, встроенный в Chrome. Приложение использует его для общения с открытой вкладкой Google Photos — считывает токены аутентификации и делает API-запросы от твоего имени.<br><br>
+<b>Зелёный значок:</b> Chrome запущен с <code>--remote-debugging-port=9222</code> и имеет открытую вкладку Google Photos.<br><br>
+Все операции (Сканировать, Удалить, Проверить) требуют активного CDP-соединения.`,
+
+    popupAdbTitle: 'ADB — Android Debug Bridge',
+    popupAdbBody: `<b>ADB</b> — инструмент для общения с Android-устройствами по USB. Приложение использует его для загрузки фото в папку камеры на Pixel 1.<br><br>
+Google Photos на Pixel затем делает бэкап — а у Pixel 1 есть постоянное исключение: все загрузки стоят <b>ноль квоты</b>.<br><br>
+<b>Зелёный значок:</b> Pixel 1 подключён по USB, USB-отладка разрешена в настройках разработчика.<br><br>
+ADB нужен только для шагов <b>Удалить + залить</b> и <b>Очистить Pixel</b>.`,
+
+    popupChromeTitle: 'Зачем запускать Chrome?',
+    popupChromeBody: `Все запросы к Google Photos идут через браузер — не напрямую из приложения. Это нужно потому, что API Google требует <b>сессионных кук</b>, которые существуют только внутри Chrome.<br><br>
+Нажав <b>Запустить Chrome</b>, открывается отдельное окно Chrome с:<br>
+• включённой удалённой отладкой (порт 9222)<br>
+• изолированным временным профилем<br><br>
+Войди в Google Photos в этом окне. CDP-значок станет зелёным после подключения.<br><br>
+Если Chrome уже запущен с <code>--remote-debugging-port=9222</code>, этот шаг можно пропустить.`,
+
+    popupAlbumsTitle: 'Откуда берутся альбомы?',
+    popupAlbumsBody: `Альбомы загружаются из <b>Google Photos через Chrome</b> — не с Pixel и не из локальных файлов.<br><br>
+При нажатии «Загрузить» приложение просит Chrome получить список альбомов через тот же API, который использует сайт Google Photos.<br><br>
+<b>Требования:</b><br>
+• Chrome подключён (зелёный CDP)<br>
+• Вкладка Google Photos открыта и авторизована<br><br>
+<b>Примечание:</b> Pixel здесь не задействован — он используется только на шаге «Удалить + залить» для перезаливки без квоты.`,
+
+    albumsLoaded: (n) => `Загружено альбомов: ${n}.`,
+    albumsError: (e) => `Ошибка альбомов: ${e}`,
+    albumsFailed: (e) => `Не удалось загрузить альбомы: ${e}`,
+    chromeLaunched: (dir) => `Chrome запущен. Профиль: ${dir}`,
+    chromeFailed: (e) => `Ошибка запуска Chrome: ${e}`,
+    profileDeleted: (p) => `Профиль удалён: ${p}`,
+    profileDeleteFailed: (e) => `Ошибка удаления: ${e}`,
+    manifestReset: 'Манифест сброшен.',
+    confirmReset: 'Удалить manifest.json и сбросить все шаги?\n\nСкачанные файлы удалены не будут.',
+    confirmDeleteProfile: (label, dir) => `Удалить профиль Chrome${label}?\n${dir}\n\nУбедись, что Chrome закрыт.`,
+    gotIt: 'Понял',
   }
 };
+
+let POPUPS = {};
+
+function t(key, ...args) {
+  const val = LANGS[lang][key];
+  if (typeof val === 'function') return val(...args);
+  return val ?? key;
+}
+
+function setText(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; }
+function setHtml(id, html) { const el = document.getElementById(id); if (el) el.innerHTML = html; }
+
+function setLang(l) {
+  lang = l;
+  localStorage.setItem('lang', l);
+  applyLang();
+  updateStepStats(manifestStats);
+  updateButtonStates();
+}
+
+function buildPopups() {
+  POPUPS = {
+    cdp:    { title: t('popupCdpTitle'),    body: t('popupCdpBody')    },
+    adb:    { title: t('popupAdbTitle'),    body: t('popupAdbBody')    },
+    chrome: { title: t('popupChromeTitle'), body: t('popupChromeBody') },
+    albums: { title: t('popupAlbumsTitle'), body: t('popupAlbumsBody') },
+  };
+}
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.getElementById('btn-lang-en').className = `small${lang === 'en' ? ' primary' : ''}`;
+  document.getElementById('btn-lang-ru').className = `small${lang === 'ru' ? ' primary' : ''}`;
+
+  setText('app-title', t('appTitle'));
+  setText('btn-reset', t('reset'));
+
+  const launchBtn = document.getElementById('launchChromeBtn');
+  if (launchBtn && !launchBtn.dataset.loading) launchBtn.textContent = t('launchChrome');
+
+  setText('sidebar-albums-title', t('albums'));
+  const loadBtn = document.getElementById('loadAlbumsBtn');
+  if (loadBtn && !loadBtn.dataset.loading) loadBtn.textContent = albums.length ? t('reload') : t('load');
+  setText('btn-select-all', t('all'));
+  setText('btn-select-none', t('none'));
+
+  setText('stat-section-title', t('manifestStats'));
+  setText('stat-label-total', t('statTotal'));
+  setText('stat-label-quota', t('statQuota'));
+  setText('stat-label-downloaded', t('statDownloaded'));
+  setText('stat-label-enriched', t('statEnriched'));
+  setText('stat-label-albums-saved', t('statAlbumsSaved'));
+  setText('stat-label-trashed', t('statTrashed'));
+  setText('stat-label-verified', t('statVerified'));
+  setText('stat-label-restored', t('statRestored'));
+
+  setText('pipeline-section-title', t('pipeline'));
+
+  setText('step1-name', t('step1Name'));
+  setText('step1-desc', t('step1Desc'));
+  setText('step2-name', t('step2Name'));
+  setText('step2-desc', t('step2Desc'));
+  setText('step3-name', t('step3Name'));
+  setText('step3-desc', t('step3Desc'));
+  setText('step4-name', t('step4Name'));
+  setHtml('step4-desc', `${t('step4Desc')}<span style="color:var(--error)">${t('step4Irreversible')}</span>`);
+  setText('step5-name', t('step5Name'));
+  setText('step5-desc', t('step5Desc'));
+  setText('step6-name', t('step6Name'));
+  setText('step6-desc', t('step6Desc'));
+  setText('step7-name', t('step7Name'));
+  setText('step7-desc', t('step7Desc'));
+
+  setText('btn-scan-full', t('btnScan'));
+  setText('btn-match', t('btnMatch'));
+  setText('btn-trash-reupload', t('btnTrash'));
+  setText('btn-verify', t('btnVerify'));
+  setText('btn-restore-albums', t('btnRestore'));
+  setText('btn-cleanup-pixel', t('btnCleanup'));
+
+  setText('chk-empty-trash-label', t('chkEmptyTrash'));
+  setText('log-title', t('logTitle'));
+  setText('btn-clear-log', t('logClear'));
+
+  if (!albums.length) {
+    const list = document.getElementById('albumList');
+    if (list) list.innerHTML = `<div class="empty">${t('albumsEmpty')}</div>`;
+  }
+
+  buildPopups();
+}
+
+// ── Popup ─────────────────────────────────────────────────────────────────────
 
 function showPopup(id) {
   const p = POPUPS[id];
   if (!p) return;
   document.getElementById('popup-title').textContent = p.title;
   document.getElementById('popup-body').innerHTML = p.body;
-  document.getElementById('popup-footer').innerHTML = '<button class="small primary" onclick="closePopup()">Got it</button>';
+  document.getElementById('popup-footer').innerHTML = `<button class="small primary" onclick="closePopup()">${t('gotIt')}</button>`;
   modalDismissable = true;
   document.getElementById('popup-overlay').style.display = 'flex';
 }
@@ -391,24 +736,16 @@ function connectSSE() {
       if (msg.name === 'trash-reupload' && awaitingPixelRestore) {
         awaitingPixelRestore = false;
         showModal({
-          title: '✓ Файлы залиты на Pixel — верни аккаунт',
-          body: `Файлы запушены на Pixel. Теперь верни Google-аккаунт, чтобы Photos начал бэкап:<br><br>
-            <b>1.</b> Открой <b>Google Photos</b> на Pixel<br>
-            <b>2.</b> Нажми <b>"Sign in"</b><br>
-            <b>3.</b> Войди в свой <b>Google-аккаунт</b><br><br>
-            <div style="padding:8px 10px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:6px;font-size:12px;color:var(--warn)">⚠️ Если аккаунт уже выбран — Google может сразу спросить про включение синхронизации. Переключись на тот аккаунт, который был выбран на предыдущем шаге, и согласись на синхронизацию.</div><br>
-            Google Photos увидит новые файлы и загрузит их в облако бесплатно.<br><br>
-            Подожди 1–4 часа, потом нажми <b>Verify</b> (шаг 5).`,
-          buttons: [{ text: 'Понял, закрыть', cls: 'primary', action: () => {} }],
+          title: t('modalAfterTrashTitle'),
+          body: t('modalAfterTrashBody'),
+          buttons: [{ text: t('modalAfterTrashClose'), cls: 'primary', action: () => {} }],
         });
       }
       if (msg.name === 'cleanup-pixel' && msg.ok) {
         showModal({
-          title: '✓ Папка очищена',
-          body: `Файлы удалены через ADB, но <b>Google Files</b> и <b>Google Photos</b> на Pixel могут ещё показывать их в списке — это нормально.<br><br>
-            Android использует медиаиндекс, который не обновляется мгновенно. Файлов физически уже нет, поэтому при попытке удалить их из приложения будет ошибка <i>"не удалось удалить"</i>.<br><br>
-            <b>Что делать:</b> просто перезагрузи Pixel — после перезагрузки медиаиндекс пересканируется и "призраки" исчезнут.`,
-          buttons: [{ text: 'Понял', cls: 'primary', action: () => {} }],
+          title: t('modalAfterCleanupTitle'),
+          body: t('modalAfterCleanupBody'),
+          buttons: [{ text: t('modalAfterCleanupClose'), cls: 'primary', action: () => {} }],
         });
       }
     }
@@ -427,9 +764,7 @@ const OP_TO_STEP = {
   'cleanup-pixel': 7,
 };
 
-function getStepNum(opName) {
-  return OP_TO_STEP[opName];
-}
+function getStepNum(opName) { return OP_TO_STEP[opName]; }
 
 function setStepRunning(opName) {
   const n = getStepNum(opName);
@@ -447,16 +782,6 @@ function setStepDone(opName, ok) {
 
 // ── Status ────────────────────────────────────────────────────────────────────
 
-function updateAccountSelect(activeAccount, emails) {
-  if (emails) Object.assign(knownEmails, emails);
-  const sel = document.getElementById('accountSelect');
-  for (const opt of sel.options) {
-    const num = opt.value.match(/\d+/)?.[0] ?? '?';
-    opt.textContent = knownEmails[opt.value] || `Account ${num}`;
-  }
-  if (activeAccount) sel.value = activeAccount;
-}
-
 async function refreshStatus() {
   try {
     const r = await fetch(`${API}/api/status`).then(r => r.json());
@@ -469,7 +794,6 @@ async function refreshStatus() {
     const adb = document.getElementById('adbBadge');
     adb.className = `badge ${r.adbConnected ? 'ok' : 'warn'}`;
     adb.innerHTML = `<div class="dot"></div> ADB`;
-    updateAccountSelect(r.account, r.knownEmails);
     if (r.manifest) updateStats(r.manifest);
     if (r.workDir) document.getElementById('workDirLabel').textContent = `Work: ${r.workDir}`;
     if (r.downloadsDir) document.getElementById('downloadsLabel').textContent = `Downloads: ${r.downloadCount ?? 0} files`;
@@ -495,8 +819,6 @@ function updateStats(s) {
 }
 
 function updateStepDoneFromStats(s) {
-  // Derive "done" state for each step from persisted manifest data.
-  // Only update steps that aren't currently running/errored (those were set via SSE).
   const markDone = (n) => {
     const el = document.getElementById(`snum-${n}`);
     if (!el || el.classList.contains('running') || el.classList.contains('error')) return;
@@ -519,40 +841,33 @@ function updateStepStats(s) {
   };
   const sel = getSelectedAlbumIds();
 
-  // Step 1
-  if (sel.length > 0) setStat('sstat-1', `${sel.length} album${sel.length > 1 ? 's' : ''} selected`);
-  else setStat('sstat-1', 'No albums selected', 'pending');
+  if (sel.length > 0) setStat('sstat-1', t('step1Ready', sel.length));
+  else setStat('sstat-1', t('step1Pending'), 'pending');
 
-  // Step 2
-  if (s.quota > 0) setStat('sstat-2', `${s.quota} quota item${s.quota > 1 ? 's' : ''} found`);
-  else if (sel.length > 0) setStat('sstat-2', 'Ready to scan', 'pending');
-  else setStat('sstat-2', 'Select albums first', 'pending');
+  if (s.quota > 0) setStat('sstat-2', t('step2Done', s.quota));
+  else if (sel.length > 0) setStat('sstat-2', t('step2Pending2'), 'pending');
+  else setStat('sstat-2', t('step2Pending1'), 'pending');
 
-  // Step 3
   if (s.downloaded > 0 && s.quota > 0) {
     const cls = s.downloaded >= s.quota ? '' : 'warn';
-    setStat('sstat-3', `${s.downloaded}/${s.quota} files matched`, cls);
-  } else if (s.quota > 0) setStat('sstat-3', 'Place files in ./downloads/, then match', 'pending');
-  else setStat('sstat-3', 'Scan first', 'pending');
+    setStat('sstat-3', t('step3Done', s.downloaded, s.quota), cls);
+  } else if (s.quota > 0) setStat('sstat-3', t('step3Pending2'), 'pending');
+  else setStat('sstat-3', t('step3Pending1'), 'pending');
 
-  // Step 4
-  if (s.trashed > 0) setStat('sstat-4', `${s.trashed} items pushed to Pixel`);
-  else if (s.downloaded > 0) setStat('sstat-4', `${s.downloaded} items ready`);
-  else setStat('sstat-4', 'Match downloads first', 'pending');
+  if (s.trashed > 0) setStat('sstat-4', t('step4Done', s.trashed));
+  else if (s.downloaded > 0) setStat('sstat-4', t('step4Pending2', s.downloaded));
+  else setStat('sstat-4', t('step4Pending1'), 'pending');
 
-  // Step 5
-  if (s.verified > 0) setStat('sstat-5', `${s.verified}/${s.trashed || s.quota} verified`);
-  else if (s.trashed > 0) setStat('sstat-5', 'Wait for Pixel backup, then verify', 'pending');
-  else setStat('sstat-5', 'Trash + reupload first', 'pending');
+  if (s.verified > 0) setStat('sstat-5', t('step5Done', s.verified, s.trashed || s.quota));
+  else if (s.trashed > 0) setStat('sstat-5', t('step5Pending2'), 'pending');
+  else setStat('sstat-5', t('step5Pending1'), 'pending');
 
-  // Step 6
-  if (s.restored > 0) setStat('sstat-6', `${s.restored} items restored`);
-  else if (s.verified > 0) setStat('sstat-6', `${s.verified} items ready`);
-  else setStat('sstat-6', 'Verify first', 'pending');
+  if (s.restored > 0) setStat('sstat-6', t('step6Done', s.restored));
+  else if (s.verified > 0) setStat('sstat-6', t('step6Pending2', s.verified));
+  else setStat('sstat-6', t('step6Pending1'), 'pending');
 
-  // Step 7
-  if (s.trashed > 0) setStat('sstat-7', `${s.trashed} files on Pixel to clean`);
-  else setStat('sstat-7', 'Trash + reupload first', 'pending');
+  if (s.trashed > 0) setStat('sstat-7', t('step7Ready', s.trashed));
+  else setStat('sstat-7', t('step7Pending'), 'pending');
 }
 
 function updateButtonStates() {
@@ -572,7 +887,6 @@ function updateButtonStates() {
   setBtn('btn-restore-albums', (s.verified ?? 0) > 0);
   setBtn('btn-cleanup-pixel', (s.trashed ?? 0) > 0);
 
-  // Step number colors (non-running, non-done states)
   if (!busy) {
     setStepReady(1, sel.length > 0);
     setStepReady(2, sel.length > 0);
@@ -583,7 +897,6 @@ function updateButtonStates() {
     setStepReady(7, (s.trashed ?? 0) > 0);
   }
 
-  // Step 1 special — no button, just readiness indicator
   const snum1 = document.getElementById('snum-1');
   if (snum1 && !snum1.classList.contains('done') && !snum1.classList.contains('running')) {
     snum1.className = `step-num ${sel.length > 0 ? 'ready' : ''}`;
@@ -602,23 +915,25 @@ function setStepReady(n, ready) {
 
 async function loadAlbums() {
   const btn = document.getElementById('loadAlbumsBtn');
+  btn.dataset.loading = '1';
   btn.textContent = '...';
   btn.disabled = true;
   try {
     const r = await fetch(`${API}/api/albums`).then(r => r.json());
     if (r.error) {
       document.getElementById('albumList').innerHTML = `<div class="empty" style="color:var(--error)">${r.error}</div>`;
-      appendLog(`Albums error: ${r.error}`, 'error');
+      appendLog(t('albumsError', r.error), 'error');
       return;
     }
     albums = r.albums || [];
     renderAlbums();
-    appendLog(`Loaded ${albums.length} albums.`, 'success');
+    appendLog(t('albumsLoaded', albums.length), 'success');
   } catch (err) {
-    document.getElementById('albumList').innerHTML = `<div class="empty" style="color:var(--error)">Failed: ${err.message}</div>`;
-    appendLog(`Failed to load albums: ${err.message}`, 'error');
+    document.getElementById('albumList').innerHTML = `<div class="empty" style="color:var(--error)">${t('albumsFailed', err.message)}</div>`;
+    appendLog(t('albumsFailed', err.message), 'error');
   } finally {
-    btn.textContent = 'Reload';
+    delete btn.dataset.loading;
+    btn.textContent = t('reload');
     btn.disabled = false;
   }
 }
@@ -626,7 +941,7 @@ async function loadAlbums() {
 function renderAlbums() {
   const list = document.getElementById('albumList');
   if (!albums.length) {
-    list.innerHTML = '<div class="empty">No albums found in this Google account.<br><small>Albums are fetched from Google Photos in Chrome.</small></div>';
+    list.innerHTML = `<div class="empty">${t('albumsNone')}</div>`;
     return;
   }
   list.innerHTML = albums.map(a => `
@@ -646,7 +961,7 @@ function toggleAlbum(id) {
 function onAlbumChange() {
   const sel = getSelectedAlbumIds();
   const selCountEl = document.getElementById('selCount');
-  selCountEl.textContent = sel.length > 0 ? `${sel.length} selected` : '';
+  selCountEl.textContent = sel.length > 0 ? t('selectedCount', sel.length) : '';
   updateStepStats(manifestStats);
   updateButtonStates();
 }
@@ -681,19 +996,13 @@ async function runScanFull() {
 async function runTrashReupload() {
   if (currentOp) return;
   const emptyTrash = document.getElementById('chk-empty-trash').checked;
-  const emptyTrashWarning = emptyTrash
-    ? `<br><div style="margin-top:10px;padding:8px 10px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:6px;font-size:12px;color:var(--error)">⚠️ "Permanently delete from trash" включено — файлы удалятся из корзины навсегда сразу после перемещения в неё.</div>`
-    : '';
+  const emptyTrashWarning = emptyTrash ? t('modalTrashEmptyWarning') : '';
   showModal({
-    title: '⚠️ Перед запуском — действие на Pixel',
-    body: `Чтобы Google Photos не пометил залитые файлы как "уже загружены", сначала:<br><br>
-      <b>1.</b> Открой <b>Google Photos</b> на Pixel<br>
-      <b>2.</b> Нажми на аватарку (правый верхний угол)<br>
-      <b>3.</b> Выбери <b>"Use Photos without an account"</b><br><br>
-      После этого нажми <b>Готово, запустить</b>.${emptyTrashWarning}`,
+    title: t('modalTrashTitle'),
+    body: t('modalTrashBody', emptyTrashWarning),
     buttons: [
-      { text: 'Отмена', cls: '', action: () => {} },
-      { text: 'Готово, запустить', cls: 'primary danger', action: async () => {
+      { text: t('modalTrashCancel'), cls: '', action: () => {} },
+      { text: t('modalTrashConfirm'), cls: 'primary danger', action: async () => {
         awaitingPixelRestore = true;
         const r = await post('/api/trash-reupload', { emptyTrash });
         if (r.error) appendLog(`Error: ${r.error}`, 'error');
@@ -710,45 +1019,41 @@ async function matchAlbums() {
 }
 
 async function resetManifest() {
-  if (!confirm('Delete manifest.json and reset all step states?\n\nDownloaded files will NOT be deleted.')) return;
+  if (!confirm(t('confirmReset'))) return;
   await post('/api/reset-manifest');
   manifestStats = {};
-  // Reset all step indicators
   for (let n = 2; n <= 7; n++) {
     const el = document.getElementById(`snum-${n}`);
     if (el) { el.className = 'step-num'; el.textContent = String(n); }
   }
   updateButtonStates();
-  appendLog('Manifest reset.', 'warn');
-}
-
-async function switchAccount() {
-  const path = document.getElementById('accountSelect').value;
-  await post('/api/switch-account', { path });
+  appendLog(t('manifestReset'), 'warn');
 }
 
 async function launchChrome() {
   const btn = document.getElementById('launchChromeBtn');
+  btn.dataset.loading = '1';
   btn.disabled = true;
   btn.textContent = '...';
   try {
     const r = await post('/api/launch-chrome');
-    if (r.error) { appendLog(`Chrome launch failed: ${r.error}`, 'error'); return; }
-    appendLog(`Chrome launched. Profile: ${r.profileDir}`, 'success');
+    if (r.error) { appendLog(t('chromeFailed', r.error), 'error'); return; }
+    appendLog(t('chromeLaunched', r.profileDir), 'success');
     setTimeout(() => { refreshStatus(); loadChromeInfo(); }, 3000);
   } finally {
+    delete btn.dataset.loading;
     btn.disabled = false;
-    btn.textContent = 'Launch Chrome';
+    btn.textContent = t('launchChrome');
   }
 }
 
 async function deleteProfile() {
   const info = await fetch(`${API}/api/chrome-info`).then(r => r.json());
   const label = info.sizeMb != null ? ` (~${info.sizeMb} MB)` : '';
-  if (!confirm(`Delete Chrome profile${label}?\n${info.profileDir}\n\nMake sure Chrome is closed.`)) return;
+  if (!confirm(t('confirmDeleteProfile', label, info.profileDir))) return;
   const r = await post('/api/delete-profile');
-  if (r.error) { appendLog(`Delete failed: ${r.error}`, 'error'); return; }
-  appendLog(`Profile deleted: ${r.deleted}`, 'warn');
+  if (r.error) { appendLog(t('profileDeleteFailed', r.error), 'error'); return; }
+  appendLog(t('profileDeleted', r.deleted), 'warn');
   loadChromeInfo();
 }
 
@@ -758,7 +1063,7 @@ async function loadChromeInfo() {
     const btn = document.getElementById('deleteProfileBtn');
     if (r.exists) {
       const label = r.sizeMb != null ? ` (${r.sizeMb} MB)` : '';
-      btn.textContent = `Delete Profile${label}`;
+      btn.textContent = `${t('deleteProfile')}${label}`;
       btn.style.display = '';
     } else {
       btn.style.display = 'none';
@@ -782,6 +1087,8 @@ function clearLog() { document.getElementById('logOutput').innerHTML = ''; }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
+buildPopups();
+applyLang();
 connectSSE();
 refreshStatus();
 loadChromeInfo();
