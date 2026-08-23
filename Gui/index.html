@@ -54,6 +54,11 @@ aside { grid-row: 1 / 3; border-right: 1px solid var(--border); display: flex; f
 .stat-value.verified { color: var(--success); }
 .stat-value.trashed { color: var(--accent); }
 
+/* Step checkbox */
+.step-extra { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 11px; color: var(--muted); cursor: pointer; user-select: none; }
+.step-extra input { accent-color: var(--accent); cursor: pointer; }
+.step-extra:hover { color: var(--text); }
+
 /* Pipeline */
 .section-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
 .pipeline { display: flex; flex-direction: column; position: relative; padding-left: 2px; }
@@ -138,6 +143,7 @@ button.small { padding: 4px 12px; font-size: 12px; }
   <button class="help-btn" onclick="showPopup('chrome')" title="What does Launch Chrome do?">?</button>
   <button class="small danger" id="deleteProfileBtn" onclick="deleteProfile()" style="display:none">Delete Profile</button>
   <button class="small" onclick="refreshStatus()">↺</button>
+  <button class="small danger" onclick="resetManifest()" title="Delete manifest.json and reset all step states">Reset</button>
 </header>
 
 <main>
@@ -217,8 +223,12 @@ button.small { padding: 4px 12px; font-size: 12px; }
             <div class="step-name">Trash + Reupload</div>
             <div class="step-desc">Delete from cloud · push to Pixel · <span style="color:var(--error)">irreversible</span></div>
             <div class="step-stat pending" id="sstat-4">Match downloads first</div>
+            <label class="step-extra">
+              <input type="checkbox" id="chk-empty-trash">
+              Permanently delete from trash after trashing (prevents auto-trash on re-upload)
+            </label>
           </div>
-          <button class="small danger step-btn" id="btn-trash-reupload" onclick="runOp('trash-reupload')" disabled>Trash & Push</button>
+          <button class="small danger step-btn" id="btn-trash-reupload" onclick="runTrashReupload()" disabled>Trash & Push</button>
         </div>
 
         <div class="step">
@@ -434,6 +444,23 @@ function updateStats(s) {
   set('sVerified', s.verified);
   set('sRestored', s.restored);
   updateStepStats(s);
+  updateStepDoneFromStats(s);
+}
+
+function updateStepDoneFromStats(s) {
+  // Derive "done" state for each step from persisted manifest data.
+  // Only update steps that aren't currently running/errored (those were set via SSE).
+  const markDone = (n) => {
+    const el = document.getElementById(`snum-${n}`);
+    if (!el || el.classList.contains('running') || el.classList.contains('error')) return;
+    el.className = 'step-num done';
+    el.textContent = '✓';
+  };
+  if ((s.quota ?? 0) > 0) markDone(2);
+  if ((s.downloaded ?? 0) > 0) markDone(3);
+  if ((s.trashed ?? 0) > 0) markDone(4);
+  if ((s.verified ?? 0) > 0) markDone(5);
+  if ((s.restored ?? 0) > 0) markDone(6);
 }
 
 function updateStepStats(s) {
@@ -604,11 +631,40 @@ async function runScanFull() {
   if (r.error) appendLog(`Error: ${r.error}`, 'error');
 }
 
+async function runTrashReupload() {
+  if (currentOp) return;
+  const emptyTrash = document.getElementById('chk-empty-trash').checked;
+  if (emptyTrash) {
+    const ok = confirm(
+      'Trash + Reupload with "Permanently delete from trash" enabled.\n\n' +
+      '⚠️ The processed files will be PERMANENTLY deleted from Google Photos trash immediately after trashing — this cannot be undone.\n\n' +
+      'Files NOT being processed will NOT be touched.\n\n' +
+      'Continue?'
+    );
+    if (!ok) return;
+  }
+  const r = await post('/api/trash-reupload', { emptyTrash });
+  if (r.error) appendLog(`Error: ${r.error}`, 'error');
+}
+
 async function matchAlbums() {
   const ids = getSelectedAlbumIds();
   if (!ids.length) return;
   const r = await post('/api/match', { albumIds: ids });
   if (r.error) appendLog(`Error: ${r.error}`, 'error');
+}
+
+async function resetManifest() {
+  if (!confirm('Delete manifest.json and reset all step states?\n\nDownloaded files will NOT be deleted.')) return;
+  await post('/api/reset-manifest');
+  manifestStats = {};
+  // Reset all step indicators
+  for (let n = 2; n <= 7; n++) {
+    const el = document.getElementById(`snum-${n}`);
+    if (el) { el.className = 'step-num'; el.textContent = String(n); }
+  }
+  updateButtonStates();
+  appendLog('Manifest reset.', 'warn');
 }
 
 async function switchAccount() {

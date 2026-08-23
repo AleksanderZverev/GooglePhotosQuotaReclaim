@@ -582,7 +582,24 @@ async function opScanFull({ albumIds } = {}) {
   } finally { cdp.close(); }
 }
 
-async function opTrashReupload({ mediaKeys: filterKeys, saveAlbumsFirst = true } = {}) {
+async function permanentDeleteFromTrash(cdp, tokens, dedupKey) {
+  const r = await cdp.evaluate(`
+    (async () => {
+      const d = [null, 2, [${JSON.stringify(dedupKey)}], 3];
+      const w = [[['XwAOJf', JSON.stringify(d), null, 'generic']]];
+      const body = 'f.req=' + encodeURIComponent(JSON.stringify(w)) + '&at=' + encodeURIComponent(${JSON.stringify(tokens.at)}) + '&';
+      const p = new URLSearchParams({ rpcids: 'XwAOJf', 'source-path': '/photos', 'f.sid': ${JSON.stringify(tokens.fsid)}, bl: ${JSON.stringify(tokens.bl)}, pageId: 'none', rt: 'c' });
+      const resp = await fetch(${JSON.stringify(`https://photos.google.com${tokens.path}data/batchexecute?`)} + p, {
+        method: 'POST', credentials: 'include',
+        headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body,
+      });
+      const t = await resp.text();
+      return { status: resp.status, hasError: t.includes('"er"'), body: t.slice(0, 200) };
+    })()`);
+  if (r.status !== 200 || r.hasError) throw new Error(`permanent delete status=${r.status} hasError=${r.hasError}`);
+}
+
+async function opTrashReupload({ mediaKeys: filterKeys, saveAlbumsFirst = true, emptyTrash = false } = {}) {
   opStart('trash-reupload');
   if (!checkAdb()) {
     const msg = 'No ADB device connected';
@@ -668,6 +685,15 @@ async function opTrashReupload({ mediaKeys: filterKeys, saveAlbumsFirst = true }
           if (tr.status !== 200 || tr.hasError) throw new Error(`Trash status=${tr.status}`);
           item.trashedAt = new Date().toISOString();
 
+          if (emptyTrash) {
+            try {
+              await permanentDeleteFromTrash(cdp, tokens, item.dedupKey);
+              log(`  Permanently deleted from trash: ${label}`);
+            } catch (e) {
+              log(`  Could not permanently delete from trash: ${e.message}`, 'warn');
+            }
+          }
+
           const rawName = path.basename(item.downloadedAs);
           const pushName = safeName(rawName);
           const remote = `/sdcard/DCIM/Camera/${pushName}`;
@@ -751,14 +777,15 @@ async function opVerify() {
           }
         }
       }
-      log(`Page ${page}: ${verified.size}/${items.length} verified`);
+      log(`Page ${page} (${pageItems.length} items): ${verified.size}/${items.length} verified`);
       if (verified.size >= items.length) break;
     } while (pageToken);
 
     writeManifest(manifest);
-    const summary = `Verified ${verified.size}/${items.length} items.`;
-    log(summary, 'success');
-    opEnd('verify', true, summary);
+    const allDone = verified.size >= items.length;
+    const summary = `Verified ${verified.size}/${items.length} items.${!allDone ? ' Run again after Pixel finishes backup.' : ''}`;
+    log(summary, allDone ? 'success' : 'warn');
+    opEnd('verify', allDone, summary);
     return { ok: true, verified: verified.size };
   } catch (err) {
     log(`Verify failed: ${err.message}`, 'error');
@@ -1081,6 +1108,12 @@ async function handle(req, res) {
     '/api/cleanup-pixel':   () => opCleanupPixel(),
     '/api/match':           () => body.albumIds?.length ? opMatchAlbums(body) : Promise.resolve({ error: 'albumIds required' }),
     '/api/switch-account':  () => body.path ? opSwitchAccount(body.path) : Promise.resolve({ error: 'path required' }),
+    '/api/reset-manifest':  () => {
+      if (fs.existsSync(MANIFEST_FILE)) fs.unlinkSync(MANIFEST_FILE);
+      broadcast('stats', manifestStats([]));
+      log('Manifest deleted.', 'warn');
+      return Promise.resolve({ ok: true });
+    },
   };
 
   if (ops[p]) {
