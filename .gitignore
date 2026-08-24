@@ -7,3 +7,7 @@ progress.json
 progress.backup.json
 quota-items-scan.json
 .DS_Store
+
+# ADB binaries — place them in adb/ but don't commit
+adb/*
+!adb/README.md

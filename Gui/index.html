@@ -925,7 +925,7 @@ function updateButtonStates() {
   };
 
   setBtn('btn-scan-full', scanAll || sel.length > 0);
-  setBtn('btn-match', sel.length > 0);
+  setBtn('btn-match', (s.quota ?? 0) > 0 || sel.length > 0);
   setBtn('btn-trash-reupload', (s.downloaded ?? 0) > 0);
   setBtn('btn-verify', (s.trashed ?? 0) > 0);
   setBtn('btn-restore-albums', (s.verified ?? 0) > 0);
@@ -934,7 +934,7 @@ function updateButtonStates() {
   if (!busy) {
     setStepReady(1, sel.length > 0 || scanAll);
     setStepReady(2, sel.length > 0 || scanAll);
-    setStepReady(3, (s.quota ?? 0) > 0 && sel.length > 0);
+    setStepReady(3, (s.quota ?? 0) > 0);
     setStepReady(4, (s.downloaded ?? 0) > 0);
     setStepReady(5, (s.trashed ?? 0) > 0);
     setStepReady(6, (s.verified ?? 0) > 0);
@@ -1063,8 +1063,8 @@ async function runTrashReupload() {
 
 async function matchAlbums() {
   const ids = getSelectedAlbumIds();
-  if (!ids.length) return;
-  const r = await post('/api/match', { albumIds: ids });
+  const body = ids.length ? { albumIds: ids } : {};
+  const r = await post('/api/match', body);
   if (r.error) appendLog(`Error: ${r.error}`, 'error');
 }
 

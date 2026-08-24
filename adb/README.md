@@ -1,9 +1,14 @@
 # ADB — Android Debug Bridge
 
-Place the ADB platform-tools files in this folder.
+Place **all files** from the downloaded Platform Tools archive in this folder.
 
-**Windows:** `adb.exe`, `AdbWinApi.dll`, `AdbWinUsbApi.dll`  
-**Linux / macOS:** `adb`
+**Windows** (from `platform-tools-latest-windows.zip`):
+- `adb.exe`
+- `AdbWinApi.dll`
+- `AdbWinUsbApi.dll`
+
+**Linux / macOS** (from the corresponding archive):
+- `adb`
 
 Download: https://developer.android.com/tools/releases/platform-tools
 

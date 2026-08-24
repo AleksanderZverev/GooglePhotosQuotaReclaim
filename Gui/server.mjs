@@ -513,10 +513,8 @@ async function opScanFull({ albumIds } = {}) {
       if (!mediaKey || existingKeys.has(mediaKey)) continue;
       if (d?.[23] !== 2) continue;
       const itemAlbums = [];
-      if (!scanAll) {
-        for (const [albumId, keys] of albumToKeys) {
-          if (keys.has(mediaKey)) itemAlbums.push({ albumId, albumTitle: albumTitleMap.get(albumId) || '' });
-        }
+      for (const [albumId, keys] of albumToKeys) {
+        if (keys.has(mediaKey)) itemAlbums.push({ albumId, albumTitle: albumTitleMap.get(albumId) || '' });
       }
       manifest.push({
         mediaKey,
@@ -525,7 +523,7 @@ async function opScanFull({ albumIds } = {}) {
         sizeBytes: d?.[9] ?? 0,
         consumesQuota: true,
         isOriginalQuality: d?.[18] === 2,
-        ...(scanAll ? {} : { albums: itemAlbums }),
+        albums: itemAlbums,
       });
       existingKeys.add(mediaKey);
       added++;
@@ -563,15 +561,21 @@ async function opScanFull({ albumIds } = {}) {
       log('All items already have dedupKeys.', 'success');
     }
 
-    // Phase 3: Check other albums for additional memberships (album-based scan only)
-    if (!scanAll) {
-      const targetSet = new Set(manifest.filter(i => i.consumesQuota).map(i => i.mediaKey));
-      const otherAlbums = allAlbums.filter(a => !albumIds.includes(a.albumId));
-      if (targetSet.size > 0 && otherAlbums.length > 0) {
-        log(`Checking ${otherAlbums.length} other albums for additional memberships...`);
+    // Phase 3: Save album memberships for all quota items
+    const targetSet = new Set(manifest.filter(i => i.consumesQuota).map(i => i.mediaKey));
+    if (targetSet.size > 0) {
+      if (scanAll) {
+        allAlbums = await listAllAlbums(cdp, tokens);
+        albumTitleMap = new Map(allAlbums.map(a => [a.albumId, a.title]));
+      }
+      const albumsToCheck = scanAll
+        ? allAlbums
+        : allAlbums.filter(a => !albumIds.includes(a.albumId));
+      if (albumsToCheck.length > 0) {
+        log(`Checking ${albumsToCheck.length} album${albumsToCheck.length > 1 ? 's' : ''} for memberships...`);
         const keyToItem = new Map(manifest.map(i => [i.mediaKey, i]));
-        let extraFound = 0;
-        for (const { albumId, title } of otherAlbums) {
+        let found = 0;
+        for (const { albumId, title } of albumsToCheck) {
           const albumItems = await enumerateAll(cdp, tokens, { albumId });
           for (const rawItem of albumItems) {
             const key = rawItem?.[0];
@@ -581,11 +585,12 @@ async function opScanFull({ albumIds } = {}) {
             if (!item.albums) item.albums = [];
             if (!item.albums.find(a => a.albumId === albumId)) {
               item.albums.push({ albumId, albumTitle: title });
-              extraFound++;
+              found++;
             }
           }
         }
-        if (extraFound > 0) { writeManifest(manifest); log(`Found ${extraFound} additional memberships.`, 'success'); }
+        if (found > 0) { writeManifest(manifest); log(`Saved ${found} album memberships.`, 'success'); }
+        else log('No album memberships found.', 'info');
       }
     }
 
@@ -890,6 +895,38 @@ async function opCleanupPixel() {
   }
 }
 
+async function opMatchManifest() {
+  opStart('match');
+  try {
+    if (!fs.existsSync(DOWNLOADS_DIR)) throw new Error(`downloads/ not found at ${DOWNLOADS_DIR}`);
+    const downloadFiles = fs.readdirSync(DOWNLOADS_DIR);
+    const downloadMap = new Map(downloadFiles.map(f => [f.toLowerCase(), path.join(DOWNLOADS_DIR, f)]));
+    log(`${downloadFiles.length} files in downloads/`);
+    const manifest = readManifest();
+    let matched = 0;
+    for (const item of manifest) {
+      if (item.downloaded && item.downloadedAs) continue;
+      const fname = item.filename?.toLowerCase();
+      if (!fname) continue;
+      const localPath = downloadMap.get(fname);
+      if (!localPath) continue;
+      item.downloaded = true;
+      item.downloadedAs = localPath;
+      matched++;
+    }
+    writeManifest(manifest);
+    const total = manifest.filter(i => i.consumesQuota).length;
+    const summary = `Matched ${matched} files. Total quota: ${total}.`;
+    log(summary, 'success');
+    opEnd('match', true, summary);
+    return { ok: true, matched };
+  } catch (err) {
+    log(`Match failed: ${err.message}`, 'error');
+    opEnd('match', false, err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
 async function opMatchAlbums({ albumIds }) {
   opStart('match');
   const cdp = await connectCdp();
@@ -1142,7 +1179,7 @@ async function handle(req, res) {
     '/api/verify':          () => opVerify(),
     '/api/restore-albums':  () => opRestoreAlbums(),
     '/api/cleanup-pixel':   () => opCleanupPixel(),
-    '/api/match':           () => body.albumIds?.length ? opMatchAlbums(body) : Promise.resolve({ error: 'albumIds required' }),
+    '/api/match':           () => body.albumIds?.length ? opMatchAlbums(body) : opMatchManifest(),
     '/api/switch-account':  () => body.path ? opSwitchAccount(body.path) : Promise.resolve({ error: 'path required' }),
     '/api/reset-manifest':  () => {
       if (fs.existsSync(MANIFEST_FILE)) fs.unlinkSync(MANIFEST_FILE);
