@@ -214,7 +214,9 @@ async function batchQuotaInfo(cdp, tokens, mediaKeys) {
 }
 
 async function listAllAlbums(cdp, tokens) {
-  const albumsUrl = `https://photos.google.com/albums`;
+  const accountMatch = tokens.path.match(/^(\/u\/\d+\/)/);
+  const accountPrefix = accountMatch ? accountMatch[1] : '/';
+  const albumsUrl = `https://photos.google.com${accountPrefix}albums`;
   const result = await cdp.evaluate(`
     (async () => {
       const resp = await fetch(${JSON.stringify(albumsUrl)}, { credentials: 'include' });
