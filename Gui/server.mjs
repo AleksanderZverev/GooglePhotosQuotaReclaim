@@ -141,9 +141,10 @@ async function getTokens(cdp) {
   return t;
 }
 
-async function callRpc(cdp, rpcId, data, tokens, { allowEmpty = false, reqType = 'generic' } = {}) {
+async function callRpc(cdp, rpcId, data, tokens, { allowEmpty = false, reqType = 'generic', sourcePath = null } = {}) {
   if (!tokens) tokens = await getTokens(cdp);
-  // Build URL inside evaluate so source-path = window.location.pathname (same as original CLI scripts).
+  // sourcePath: fixed string override; null = use window.location.pathname
+  const sourcePathExpr = sourcePath != null ? JSON.stringify(sourcePath) : 'window.location.pathname';
   const text = await cdp.evaluate(`
     (async () => {
       const rpcId = ${JSON.stringify(rpcId)};
@@ -151,7 +152,7 @@ async function callRpc(cdp, rpcId, data, tokens, { allowEmpty = false, reqType =
       const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrapped)) + '&at=' + encodeURIComponent(${JSON.stringify(tokens.at)}) + '&';
       const params = new URLSearchParams({
         rpcids: rpcId,
-        'source-path': window.location.pathname,
+        'source-path': ${sourcePathExpr},
         'f.sid': ${JSON.stringify(tokens.fsid)},
         bl: ${JSON.stringify(tokens.bl)},
         pageId: 'none',
@@ -202,9 +203,12 @@ async function enumerateAll(cdp, tokens, { albumId = null, mode = 1, onPage } = 
 async function batchQuotaInfo(cdp, tokens, mediaKeys) {
   const BATCH = 5000;
   const results = [];
+  // fDcn4b requires source-path = /u/N/photo/{key}; extract account prefix from current page
+  const prefix = await cdp.evaluate(`(window.location.pathname.match(/^\\/u\\/\\d+/) || [''])[0]`);
   for (let i = 0; i < mediaKeys.length; i += BATCH) {
     const chunk = mediaKeys.slice(i, i + BATCH);
-    const payload = await callRpc(cdp, 'fDcn4b', chunk, tokens, { reqType: '1' });
+    const sourcePath = `${prefix}/photo/${chunk[0]}`;
+    const payload = await callRpc(cdp, 'fDcn4b', chunk, tokens, { reqType: '1', sourcePath });
     const batch = payload ?? [];
     results.push(...batch);
   }

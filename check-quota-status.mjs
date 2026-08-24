@@ -86,9 +86,10 @@ async function run() {
       const mediaKeys = ['${MEDIA_KEY}'];
       const wrappedData = [[[rpcid, JSON.stringify(mediaKeys), null, '1']]];
       const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrappedData)) + '&at=' + encodeURIComponent('${tokens.at}') + '&';
+      const accountPrefix = (window.location.pathname.match(/^\/u\/\d+/) || [''])[0];
       const params = new URLSearchParams({
         rpcids: rpcid,
-        'source-path': window.location.pathname,
+        'source-path': accountPrefix + '/photo/' + mediaKeys[0],
         'f.sid': '${tokens.fsid}',
         bl: '${tokens.bl}',
         pageId: 'none',
