@@ -160,7 +160,7 @@ async function run() {
           return {
             mediaKey: item?.[0],
             fileName: d?.[3],
-            takesUpSpace: d?.[23] === 2,
+            takesUpSpace: d?.[23]?.[0] === 1,
             isOriginalQuality: d?.[18] === 2,
           };
         });

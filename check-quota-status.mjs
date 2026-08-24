@@ -117,7 +117,7 @@ async function run() {
         fileName: d?.[3],
         size: d?.[9],
         timestamp: d?.[6],
-        takesUpSpace: d?.[23] === 2,
+        takesUpSpace: d?.[23]?.[0] === 1,
         spaceTaken: d?.[9],
         isOriginalQuality: d?.[18] === 2,
       };

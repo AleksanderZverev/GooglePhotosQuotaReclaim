@@ -344,7 +344,7 @@ async function opScan({ albumIds } = {}) {
       const d = qi?.[1];
       const inExisting = existingKeys.has(mediaKey);
       if (!mediaKey || inExisting) continue;
-      if (d?.[23] !== 2) continue;
+      if (d?.[23]?.[0] !== 1) continue;
       manifest.push({
         mediaKey,
         dedupKey: dedupMap.get(mediaKey) || null,
@@ -513,7 +513,7 @@ async function opScanFull({ albumIds } = {}) {
       const mediaKey = qi?.[0];
       const d = qi?.[1];
       if (!mediaKey || existingKeys.has(mediaKey)) continue;
-      if (d?.[23] !== 2) continue;
+      if (d?.[23]?.[0] !== 1) continue;
       const itemAlbums = [];
       for (const [albumId, keys] of albumToKeys) {
         if (keys.has(mediaKey)) itemAlbums.push({ albumId, albumTitle: albumTitleMap.get(albumId) || '' });
@@ -970,7 +970,7 @@ async function opMatchAlbums({ albumIds }) {
           dedupKey: dedupMap.get(mediaKey) || null,
           filename,
           sizeBytes: d?.[9] ?? 0,
-          consumesQuota: d?.[23] === 2,
+          consumesQuota: d?.[23]?.[0] === 1,
           isOriginalQuality: d?.[18] === 2,
           downloaded: true,
           downloadedAs,
