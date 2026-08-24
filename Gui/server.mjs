@@ -141,14 +141,13 @@ async function getTokens(cdp) {
   return t;
 }
 
-async function callRpc(cdp, rpcId, data, tokens, { allowEmpty = false } = {}) {
+async function callRpc(cdp, rpcId, data, tokens, { allowEmpty = false, reqType = 'generic' } = {}) {
   if (!tokens) tokens = await getTokens(cdp);
   // Build URL inside evaluate so source-path = window.location.pathname (same as original CLI scripts).
-  // Using hardcoded '/photos' produces a different EWgK9e response format.
   const text = await cdp.evaluate(`
     (async () => {
       const rpcId = ${JSON.stringify(rpcId)};
-      const wrapped = [[[rpcId, ${JSON.stringify(JSON.stringify(data))}, null, 'generic']]];
+      const wrapped = [[[rpcId, ${JSON.stringify(JSON.stringify(data))}, null, ${JSON.stringify(reqType)}]]];
       const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrapped)) + '&at=' + encodeURIComponent(${JSON.stringify(tokens.at)}) + '&';
       const params = new URLSearchParams({
         rpcids: rpcId,
@@ -202,12 +201,11 @@ async function enumerateAll(cdp, tokens, { albumId = null, mode = 1, onPage } = 
 
 async function batchQuotaInfo(cdp, tokens, mediaKeys) {
   const BATCH = 5000;
-  const opts = [...Array(24).fill(null), [], ...Array(11).fill(null), []];
   const results = [];
   for (let i = 0; i < mediaKeys.length; i += BATCH) {
     const chunk = mediaKeys.slice(i, i + BATCH);
-    const payload = await callRpc(cdp, 'EWgK9e', [[[chunk.map(k => [k])], [opts]]], tokens);
-    const batch = payload?.[0]?.[1] ?? [];
+    const payload = await callRpc(cdp, 'fDcn4b', chunk, tokens, { reqType: '1' });
+    const batch = payload ?? [];
     results.push(...batch);
   }
   return results;
@@ -341,17 +339,16 @@ async function opScan({ albumIds } = {}) {
 
     for (const qi of quotaInfos) {
       const mediaKey = qi?.[0];
-      const d = qi?.[1];
       const inExisting = existingKeys.has(mediaKey);
       if (!mediaKey || inExisting) continue;
-      if (d?.[23]?.[0] !== 1) continue;
+      if (qi?.[30]?.[0] !== 1) continue;
       manifest.push({
         mediaKey,
         dedupKey: dedupMap.get(mediaKey) || null,
-        filename: d?.[3] ?? '',
-        sizeBytes: d?.[9] ?? 0,
+        filename: qi?.[2] ?? '',
+        sizeBytes: qi?.[5] ?? 0,
         consumesQuota: true,
-        isOriginalQuality: d?.[18] === 2,
+        isOriginalQuality: qi?.[14] === 2,
       });
       existingKeys.add(mediaKey);
       added++;
@@ -511,9 +508,8 @@ async function opScanFull({ albumIds } = {}) {
 
     for (const qi of quotaInfos) {
       const mediaKey = qi?.[0];
-      const d = qi?.[1];
       if (!mediaKey || existingKeys.has(mediaKey)) continue;
-      if (d?.[23]?.[0] !== 1) continue;
+      if (qi?.[30]?.[0] !== 1) continue;
       const itemAlbums = [];
       for (const [albumId, keys] of albumToKeys) {
         if (keys.has(mediaKey)) itemAlbums.push({ albumId, albumTitle: albumTitleMap.get(albumId) || '' });
@@ -521,10 +517,10 @@ async function opScanFull({ albumIds } = {}) {
       manifest.push({
         mediaKey,
         dedupKey: dedupMap.get(mediaKey) || null,
-        filename: d?.[3] ?? '',
-        sizeBytes: d?.[9] ?? 0,
+        filename: qi?.[2] ?? '',
+        sizeBytes: qi?.[5] ?? 0,
         consumesQuota: true,
-        isOriginalQuality: d?.[18] === 2,
+        isOriginalQuality: qi?.[14] === 2,
         albums: itemAlbums,
       });
       existingKeys.add(mediaKey);
@@ -789,18 +785,17 @@ async function opVerify() {
       if (pageKeys.length > 0) {
         const qis = await batchQuotaInfo(cdp, tokens, pageKeys);
         for (const qi of qis) {
-          const fname = (qi?.[1]?.[3] ?? '').toLowerCase();
+          const fname = (qi?.[2] ?? '').toLowerCase();
           const item = nameMap.get(fname);
           if (!item || item.verified !== undefined) continue;
-          const d = qi?.[1];
-          if (d?.[23] !== 2 && d?.[18] === 2) {
+          if (qi?.[30]?.[0] !== 1 && qi?.[14] === 2) {
             item.verified = true;
             item.newMediaKey = qi?.[0];
             item.verifiedAt = new Date().toISOString();
             verified.add(item.mediaKey);
           } else {
             item.verified = false;
-            item.verifyNote = d?.[23] === 2 ? 'Still takes space' : 'Not original quality';
+            item.verifyNote = qi?.[30]?.[0] === 1 ? 'Still takes space' : 'Not original quality';
           }
         }
       }
@@ -953,12 +948,11 @@ async function opMatchAlbums({ albumIds }) {
         const mediaKey = rawItem?.[0];
         if (!mediaKey) continue;
         const qi = quotaMap.get(mediaKey);
-        const filename = qi?.[1]?.[3] ?? '';
+        const filename = qi?.[2] ?? '';
         if (!filename) continue;
         const matchedFile = downloadMap.get(filename.toLowerCase());
         if (!matchedFile) continue;
         matched++;
-        const d = qi?.[1];
         const downloadedAs = path.join(DOWNLOADS_DIR, matchedFile);
         if (existingKeys.has(mediaKey)) {
           const existing = manifest.find(m => m.mediaKey === mediaKey);
@@ -969,9 +963,9 @@ async function opMatchAlbums({ albumIds }) {
           mediaKey,
           dedupKey: dedupMap.get(mediaKey) || null,
           filename,
-          sizeBytes: d?.[9] ?? 0,
-          consumesQuota: d?.[23]?.[0] === 1,
-          isOriginalQuality: d?.[18] === 2,
+          sizeBytes: qi?.[5] ?? 0,
+          consumesQuota: qi?.[30]?.[0] === 1,
+          isOriginalQuality: qi?.[14] === 2,
           downloaded: true,
           downloadedAs,
         });

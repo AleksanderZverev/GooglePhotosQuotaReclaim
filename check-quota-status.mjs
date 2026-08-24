@@ -82,11 +82,9 @@ async function run() {
 
   const result = await cdp.evaluate(`
     (async () => {
-      const rpcid = 'EWgK9e';
+      const rpcid = 'fDcn4b';
       const mediaKeys = ['${MEDIA_KEY}'];
-      const mappedKeys = mediaKeys.map(id => [id]);
-      const requestData = [[[mappedKeys], [[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,[],null,null,null,null,null,null,null,null,null,null,[]]]]];
-      const wrappedData = [[[rpcid, JSON.stringify(requestData), null, 'generic']]];
+      const wrappedData = [[[rpcid, JSON.stringify(mediaKeys), null, '1']]];
       const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrappedData)) + '&at=' + encodeURIComponent('${tokens.at}') + '&';
       const params = new URLSearchParams({
         rpcids: rpcid,
@@ -108,18 +106,17 @@ async function run() {
       if (!lines.length) return { error: 'No wrb.fr envelope', raw: text.slice(0, 500) };
       const parsed = JSON.parse(lines[0]);
       const payload = JSON.parse(parsed[0][2]);
-      const itemsData = payload?.[0]?.[1] || [];
-      const item = itemsData[0];
+      const item = (payload || [])[0];
       if (!item) return { error: 'No item data returned' };
-      const d = item?.[1];
       return {
         mediaKey: item?.[0],
-        fileName: d?.[3],
-        size: d?.[9],
-        timestamp: d?.[6],
-        takesUpSpace: d?.[23]?.[0] === 1,
-        spaceTaken: d?.[9],
-        isOriginalQuality: d?.[18] === 2,
+        fileName: item?.[2],
+        size: item?.[5],
+        timestamp: item?.[3],
+        takesUpSpace: item?.[30]?.[0] === 1,
+        spaceTaken: item?.[5],
+        isOriginalQuality: item?.[14] === 2,
+        rawLastArr: item?.[30],
       };
     })()
   `);

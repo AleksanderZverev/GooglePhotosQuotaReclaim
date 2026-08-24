@@ -136,14 +136,12 @@ async function run() {
     // Batch check quota
     const quotaResult = await cdp.evaluate(`
       (async () => {
-        const rpcid = 'EWgK9e';
+        const rpcid = 'fDcn4b';
         const mediaKeys = ${JSON.stringify(pageResult.items)};
-        const mappedKeys = mediaKeys.map(id => [id]);
-        const requestData = [[[mappedKeys], [[null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,[],null,null,null,null,null,null,null,null,null,null,[]]]]];
-        const wrappedData = [[[rpcid, JSON.stringify(requestData), null, 'generic']]];
+        const wrappedData = [[[rpcid, JSON.stringify(mediaKeys), null, '1']]];
         const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrappedData)) + '&at=' + encodeURIComponent('${tokens.at}') + '&';
         const params = new URLSearchParams({
-          rpcids: rpcid, 'source-path': '/', 'f.sid': '${tokens.fsid}', bl: '${tokens.bl}', pageId: 'none', rt: 'c',
+          rpcids: rpcid, 'source-path': window.location.pathname, 'f.sid': '${tokens.fsid}', bl: '${tokens.bl}', pageId: 'none', rt: 'c',
         });
         const url = 'https://photos.google.com${tokens.path}data/batchexecute?' + params.toString();
         const resp = await fetch(url, {
@@ -155,13 +153,12 @@ async function run() {
         if (!lines.length) return [];
         const parsed = JSON.parse(lines[0]);
         const payload = JSON.parse(parsed[0][2]);
-        return (payload?.[0]?.[1] || []).map(item => {
-          const d = item?.[1];
+        return (payload || []).map(item => {
           return {
             mediaKey: item?.[0],
-            fileName: d?.[3],
-            takesUpSpace: d?.[23]?.[0] === 1,
-            isOriginalQuality: d?.[18] === 2,
+            fileName: item?.[2],
+            takesUpSpace: item?.[30]?.[0] === 1,
+            isOriginalQuality: item?.[14] === 2,
           };
         });
       })()
