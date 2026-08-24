@@ -198,6 +198,10 @@ button.small { padding: 4px 12px; font-size: 12px; }
             <div class="step-name" id="step2-name">Scan &amp; Prepare</div>
             <div class="step-desc" id="step2-desc">Find quota items · get dedupKeys · save album memberships</div>
             <div class="step-stat pending" id="sstat-2">Select albums first</div>
+            <label class="step-extra">
+              <input type="checkbox" id="chk-scan-all" onchange="onScanAllChange()">
+              <span id="chk-scan-all-label">Scan all library (ignore album selection)</span>
+            </label>
           </div>
           <button class="small primary step-btn" id="btn-scan-full" onclick="runScanFull()" disabled>Scan</button>
         </div>
@@ -207,6 +211,7 @@ button.small { padding: 4px 12px; font-size: 12px; }
           <div class="step-info">
             <div class="step-name" id="step3-name">Match Downloads</div>
             <div class="step-desc" id="step3-desc">Link files in ./downloads/ to manifest items</div>
+            <div class="step-desc" id="step3-note" style="margin-top:3px"></div>
             <div class="step-stat pending" id="sstat-3">Scan first</div>
           </div>
           <button class="small step-btn" id="btn-match" onclick="matchAlbums()" disabled>Match</button>
@@ -293,6 +298,8 @@ let awaitingPixelRestore = false;
 // ── i18n ─────────────────────────────────────────────────────────────────────
 
 let lang = localStorage.getItem('lang') || 'en';
+let chromeProfileSizeMb = null;
+let adbBinaryWarnShown = false;
 
 const LANGS = {
   en: {
@@ -306,9 +313,11 @@ const LANGS = {
     albumsNone: 'No albums found in this Google account.<br><small>Albums are fetched from Google Photos in Chrome.</small>',
     load: 'Load',
     reload: 'Reload',
-    all: 'All',
-    none: 'None',
+    all: 'Select all',
+    none: 'Clean',
     selectedCount: (n) => `${n} selected`,
+    workDirLabel: (dir) => `Work: ${dir}`,
+    downloadsLabel: (n) => `Downloads: ${n} files`,
 
     manifestStats: 'Manifest Stats',
     statTotal: 'Total items',
@@ -326,16 +335,19 @@ const LANGS = {
     step1Desc: 'Choose albums in the sidebar to process',
     step1Pending: 'No albums selected',
     step1Ready: (n) => `${n} album${n > 1 ? 's' : ''} selected`,
+    step1ScanAll: 'Full library scan',
 
     step2Name: 'Scan & Prepare',
     step2Desc: 'Find quota items · get dedupKeys · save album memberships',
-    step2Pending1: 'Select albums first',
+    step2Pending1: 'Select albums or enable "Scan all library"',
     step2Pending2: 'Ready to scan',
     step2Done: (n) => `${n} quota item${n > 1 ? 's' : ''} found`,
     btnScan: 'Scan',
+    chkScanAll: 'Scan all library (ignore album selection)',
 
     step3Name: 'Match Downloads',
     step3Desc: 'Link files in ./downloads/ to manifest items',
+    step3Note: 'Place photo files in the <b>downloads/</b> folder. To preserve metadata (dates, GPS), process with <a href="https://github.com/Xentraxx/GooglePhotosTakeoutHelper_Neo" target="_blank" style="color:var(--accent)">GooglePhotosTakeoutHelper Neo</a> first.',
     step3Pending1: 'Scan first',
     step3Pending2: 'Place files in ./downloads/, then match',
     step3Done: (n, total) => `${n}/${total} files matched`,
@@ -404,9 +416,12 @@ const LANGS = {
 <b>Green badge:</b> Chrome is running with <code>--remote-debugging-port=9222</code> and has a Google Photos tab open.<br><br>
 All library operations (Scan, Enrich, Trash, Verify) require an active CDP connection.`,
 
+    adbNotFound: `ADB binary not found in adb/ folder. Download Platform Tools from https://developer.android.com/tools/releases/platform-tools and place adb.exe in the adb/ folder.`,
+
     popupAdbTitle: 'ADB — Android Debug Bridge',
     popupAdbBody: `<b>ADB</b> is a tool for communicating with Android devices over USB. This app uses it to push photos to your Pixel 1's camera folder.<br><br>
 Google Photos on the Pixel then backs them up — and Pixel 1 has a permanent exemption that makes all uploads cost <b>zero quota</b>.<br><br>
+<b>Setup:</b> Download <a href="https://developer.android.com/tools/releases/platform-tools" target="_blank" style="color:var(--accent)">Platform Tools</a> and place <code>adb.exe</code> in the <code>adb/</code> folder next to this project.<br><br>
 <b>Green badge:</b> Pixel 1 is connected via USB, USB debugging is authorized in Developer Options, and ADB can see the device.<br><br>
 ADB is only needed for the <b>Trash + Reupload</b> and <b>Cleanup Pixel</b> steps.`,
 
@@ -450,9 +465,11 @@ When you click Load, the app asks Chrome to fetch your album list using the same
     albumsNone: 'Альбомы не найдены в этом Google-аккаунте.<br><small>Альбомы загружаются из Google Photos в Chrome.</small>',
     load: 'Загрузить',
     reload: 'Обновить',
-    all: 'Все',
-    none: 'Нет',
+    all: 'Выбрать все',
+    none: 'Очистить',
     selectedCount: (n) => `Выбрано: ${n}`,
+    workDirLabel: (dir) => `Рабочая папка: ${dir}`,
+    downloadsLabel: (n) => `Загрузки: ${n} файлов`,
 
     manifestStats: 'Статистика',
     statTotal: 'Всего',
@@ -470,16 +487,19 @@ When you click Load, the app asks Chrome to fetch your album list using the same
     step1Desc: 'Выбери альбомы в панели слева',
     step1Pending: 'Альбомы не выбраны',
     step1Ready: (n) => `Выбрано альбомов: ${n}`,
+    step1ScanAll: 'Сканирование всей библиотеки',
 
     step2Name: 'Сканировать',
     step2Desc: 'Найти квотные элементы · получить dedupKey · сохранить альбомы',
-    step2Pending1: 'Сначала выбери альбомы',
+    step2Pending1: 'Выбери альбомы или включи «Сканировать всю библиотеку»',
     step2Pending2: 'Готово к сканированию',
     step2Done: (n) => `Найдено квотных: ${n}`,
     btnScan: 'Сканировать',
+    chkScanAll: 'Сканировать всю библиотеку (без фильтра по альбомам)',
 
     step3Name: 'Привязать загрузки',
     step3Desc: 'Связать файлы из ./downloads/ с элементами манифеста',
+    step3Note: 'Помести файлы фото в папку <b>downloads/</b>. Для сохранения метаданных (даты, GPS) используй <a href="https://github.com/Xentraxx/GooglePhotosTakeoutHelper_Neo" target="_blank" style="color:var(--accent)">GooglePhotosTakeoutHelper Neo</a>.',
     step3Pending1: 'Сначала сканируй',
     step3Pending2: 'Положи файлы в ./downloads/, затем привяжи',
     step3Done: (n, total) => `Привязано: ${n}/${total}`,
@@ -548,9 +568,12 @@ When you click Load, the app asks Chrome to fetch your album list using the same
 <b>Зелёный значок:</b> Chrome запущен с <code>--remote-debugging-port=9222</code> и имеет открытую вкладку Google Photos.<br><br>
 Все операции (Сканировать, Удалить, Проверить) требуют активного CDP-соединения.`,
 
+    adbNotFound: `ADB-бинарник не найден в папке adb/. Скачай Platform Tools с https://developer.android.com/tools/releases/platform-tools и положи adb.exe в папку adb/.`,
+
     popupAdbTitle: 'ADB — Android Debug Bridge',
     popupAdbBody: `<b>ADB</b> — инструмент для общения с Android-устройствами по USB. Приложение использует его для загрузки фото в папку камеры на Pixel 1.<br><br>
 Google Photos на Pixel затем делает бэкап — а у Pixel 1 есть постоянное исключение: все загрузки стоят <b>ноль квоты</b>.<br><br>
+<b>Настройка:</b> Скачай <a href="https://developer.android.com/tools/releases/platform-tools" target="_blank" style="color:var(--accent)">Platform Tools</a> и положи <code>adb.exe</code> в папку <code>adb/</code> рядом с проектом.<br><br>
 <b>Зелёный значок:</b> Pixel 1 подключён по USB, USB-отладка разрешена в настройках разработчика.<br><br>
 ADB нужен только для шагов <b>Удалить + залить</b> и <b>Очистить Pixel</b>.`,
 
@@ -623,6 +646,12 @@ function applyLang() {
   const launchBtn = document.getElementById('launchChromeBtn');
   if (launchBtn && !launchBtn.dataset.loading) launchBtn.textContent = t('launchChrome');
 
+  const delBtn = document.getElementById('deleteProfileBtn');
+  if (delBtn && delBtn.style.display !== 'none') {
+    const label = chromeProfileSizeMb != null ? ` (${chromeProfileSizeMb} MB)` : '';
+    delBtn.textContent = `${t('deleteProfile')}${label}`;
+  }
+
   setText('sidebar-albums-title', t('albums'));
   const loadBtn = document.getElementById('loadAlbumsBtn');
   if (loadBtn && !loadBtn.dataset.loading) loadBtn.textContent = albums.length ? t('reload') : t('load');
@@ -647,6 +676,7 @@ function applyLang() {
   setText('step2-desc', t('step2Desc'));
   setText('step3-name', t('step3Name'));
   setText('step3-desc', t('step3Desc'));
+  setHtml('step3-note', t('step3Note'));
   setText('step4-name', t('step4Name'));
   setHtml('step4-desc', `${t('step4Desc')}<span style="color:var(--error)">${t('step4Irreversible')}</span>`);
   setText('step5-name', t('step5Name'));
@@ -657,6 +687,7 @@ function applyLang() {
   setText('step7-desc', t('step7Desc'));
 
   setText('btn-scan-full', t('btnScan'));
+  setText('chk-scan-all-label', t('chkScanAll'));
   setText('btn-match', t('btnMatch'));
   setText('btn-trash-reupload', t('btnTrash'));
   setText('btn-verify', t('btnVerify'));
@@ -791,12 +822,22 @@ async function refreshStatus() {
       ? (r.accountEmail ? `CDP (${r.accountEmail})` : (r.account && r.account !== '/' ? `CDP ${r.account}` : 'CDP'))
       : 'CDP';
     document.getElementById('cdpLabel').textContent = cdpText;
-    const adb = document.getElementById('adbBadge');
-    adb.className = `badge ${r.adbConnected ? 'ok' : 'warn'}`;
-    adb.innerHTML = `<div class="dot"></div> ADB`;
+    const adbBadge = document.getElementById('adbBadge');
+    if (r.adbBinaryFound === false) {
+      adbBadge.className = 'badge bad';
+      adbBadge.title = 'ADB binary not found in adb/ folder';
+      if (!adbBinaryWarnShown) {
+        adbBinaryWarnShown = true;
+        appendLog(t('adbNotFound'), 'warn');
+      }
+    } else {
+      adbBadge.className = `badge ${r.adbConnected ? 'ok' : 'warn'}`;
+      adbBadge.title = '';
+    }
+    adbBadge.innerHTML = `<div class="dot"></div> ADB`;
     if (r.manifest) updateStats(r.manifest);
-    if (r.workDir) document.getElementById('workDirLabel').textContent = `Work: ${r.workDir}`;
-    if (r.downloadsDir) document.getElementById('downloadsLabel').textContent = `Downloads: ${r.downloadCount ?? 0} files`;
+    if (r.workDir) document.getElementById('workDirLabel').textContent = t('workDirLabel', r.workDir);
+    if (r.downloadsDir) document.getElementById('downloadsLabel').textContent = t('downloadsLabel', r.downloadCount ?? 0);
     currentOp = r.currentOp || null;
     updateButtonStates();
   } catch {}
@@ -840,12 +881,14 @@ function updateStepStats(s) {
     el.className = `step-stat${cls ? ' ' + cls : ''}`;
   };
   const sel = getSelectedAlbumIds();
+  const scanAll = document.getElementById('chk-scan-all')?.checked;
 
   if (sel.length > 0) setStat('sstat-1', t('step1Ready', sel.length));
+  else if (scanAll) setStat('sstat-1', t('step1ScanAll'));
   else setStat('sstat-1', t('step1Pending'), 'pending');
 
   if (s.quota > 0) setStat('sstat-2', t('step2Done', s.quota));
-  else if (sel.length > 0) setStat('sstat-2', t('step2Pending2'), 'pending');
+  else if (scanAll || sel.length > 0) setStat('sstat-2', t('step2Pending2'), 'pending');
   else setStat('sstat-2', t('step2Pending1'), 'pending');
 
   if (s.downloaded > 0 && s.quota > 0) {
@@ -874,13 +917,14 @@ function updateButtonStates() {
   const busy = !!currentOp;
   const s = manifestStats;
   const sel = getSelectedAlbumIds();
+  const scanAll = document.getElementById('chk-scan-all')?.checked;
 
   const setBtn = (id, enabled) => {
     const el = document.getElementById(id);
     if (el) el.disabled = busy || !enabled;
   };
 
-  setBtn('btn-scan-full', sel.length > 0);
+  setBtn('btn-scan-full', scanAll || sel.length > 0);
   setBtn('btn-match', sel.length > 0);
   setBtn('btn-trash-reupload', (s.downloaded ?? 0) > 0);
   setBtn('btn-verify', (s.trashed ?? 0) > 0);
@@ -888,8 +932,8 @@ function updateButtonStates() {
   setBtn('btn-cleanup-pixel', (s.trashed ?? 0) > 0);
 
   if (!busy) {
-    setStepReady(1, sel.length > 0);
-    setStepReady(2, sel.length > 0);
+    setStepReady(1, sel.length > 0 || scanAll);
+    setStepReady(2, sel.length > 0 || scanAll);
     setStepReady(3, (s.quota ?? 0) > 0 && sel.length > 0);
     setStepReady(4, (s.downloaded ?? 0) > 0);
     setStepReady(5, (s.trashed ?? 0) > 0);
@@ -899,7 +943,7 @@ function updateButtonStates() {
 
   const snum1 = document.getElementById('snum-1');
   if (snum1 && !snum1.classList.contains('done') && !snum1.classList.contains('running')) {
-    snum1.className = `step-num ${sel.length > 0 ? 'ready' : ''}`;
+    snum1.className = `step-num ${(sel.length > 0 || scanAll) ? 'ready' : ''}`;
     snum1.textContent = '1';
   }
 }
@@ -987,10 +1031,16 @@ async function runOp(name) {
 }
 
 async function runScanFull() {
+  const scanAll = document.getElementById('chk-scan-all').checked;
   const ids = getSelectedAlbumIds();
-  if (!ids.length) return;
-  const r = await post('/api/scan-full', { albumIds: ids });
+  if (!scanAll && !ids.length) return;
+  const r = await post('/api/scan-full', scanAll ? {} : { albumIds: ids });
   if (r.error) appendLog(`Error: ${r.error}`, 'error');
+}
+
+function onScanAllChange() {
+  updateStepStats(manifestStats);
+  updateButtonStates();
 }
 
 async function runTrashReupload() {
@@ -1060,12 +1110,14 @@ async function deleteProfile() {
 async function loadChromeInfo() {
   try {
     const r = await fetch(`${API}/api/chrome-info`).then(r => r.json());
+    chromeProfileSizeMb = r.sizeMb ?? null;
     const btn = document.getElementById('deleteProfileBtn');
     if (r.exists) {
       const label = r.sizeMb != null ? ` (${r.sizeMb} MB)` : '';
       btn.textContent = `${t('deleteProfile')}${label}`;
       btn.style.display = '';
     } else {
+      chromeProfileSizeMb = null;
       btn.style.display = 'none';
     }
   } catch {}

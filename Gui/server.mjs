@@ -19,6 +19,10 @@ const CHROME_PATHS = [
 const WORK_DIR = process.env.WORK_DIR || path.dirname(__dirname);
 const MANIFEST_FILE = path.join(WORK_DIR, 'manifest.json');
 const DOWNLOADS_DIR = path.join(WORK_DIR, 'downloads');
+const ADB_DIR = path.join(WORK_DIR, 'adb');
+const ADB_EXE = process.platform === 'win32' ? 'adb.exe' : 'adb';
+const ADB_PATH = path.join(ADB_DIR, ADB_EXE);
+const ADB_DOWNLOAD_URL = 'https://developer.android.com/tools/releases/platform-tools';
 
 const emailCacheMap = new Map(); // path -> { email, at }
 
@@ -284,7 +288,10 @@ async function tryGetAccountEmail(wsUrl) {
 // ── ADB ──────────────────────────────────────────────────────────────────────
 
 function adb(cmd) {
-  return execSync(`adb ${cmd}`, { encoding: 'utf8', timeout: 30000 }).trim();
+  if (!fs.existsSync(ADB_PATH)) {
+    throw new Error(`ADB binary not found at ${ADB_PATH}. Download Platform Tools from ${ADB_DOWNLOAD_URL} and place ${ADB_EXE} in the adb/ folder.`);
+  }
+  return execSync(`"${ADB_PATH}" ${cmd}`, { encoding: 'utf8', timeout: 30000 }).trim();
 }
 
 function checkAdb() {
@@ -449,33 +456,38 @@ async function opSaveAlbums() {
 }
 
 async function opScanFull({ albumIds } = {}) {
-  if (!albumIds?.length) {
-    const msg = 'No albums selected — select at least one album first';
-    log(msg, 'error');
-    return { ok: false, error: msg };
-  }
+  const scanAll = !albumIds?.length;
   opStart('scan-full');
   const cdp = await connectCdp();
   try {
     const tokens = await getTokens(cdp);
     log(`Scanning... (account: ${tokens.path})`);
 
-    // Fetch album titles up front
-    const allAlbums = await listAllAlbums(cdp, tokens);
-    const albumTitleMap = new Map(allAlbums.map(a => [a.albumId, a.title]));
-
-    // Phase 1: Enumerate selected albums
+    // Phase 1: Enumerate
     const rawItems = [];
     const albumToKeys = new Map();
-    for (const albumId of albumIds) {
-      const title = albumTitleMap.get(albumId) || albumId.slice(-8);
-      log(`Enumerating "${title}"...`);
+    let allAlbums = [];
+    let albumTitleMap = new Map();
+
+    if (scanAll) {
+      log('Scanning full library...');
       const items = await enumerateAll(cdp, tokens, {
-        albumId,
-        onPage: (p, total) => log(`  Page ${p}: ${total} items`),
+        onPage: (p, total) => log(`Page ${p}: ${total} items`),
       });
       rawItems.push(...items);
-      albumToKeys.set(albumId, new Set(items.map(i => i?.[0]).filter(Boolean)));
+    } else {
+      allAlbums = await listAllAlbums(cdp, tokens);
+      albumTitleMap = new Map(allAlbums.map(a => [a.albumId, a.title]));
+      for (const albumId of albumIds) {
+        const title = albumTitleMap.get(albumId) || albumId.slice(-8);
+        log(`Enumerating "${title}"...`);
+        const items = await enumerateAll(cdp, tokens, {
+          albumId,
+          onPage: (p, total) => log(`  Page ${p}: ${total} items`),
+        });
+        rawItems.push(...items);
+        albumToKeys.set(albumId, new Set(items.map(i => i?.[0]).filter(Boolean)));
+      }
     }
 
     // Dedup
@@ -501,8 +513,10 @@ async function opScanFull({ albumIds } = {}) {
       if (!mediaKey || existingKeys.has(mediaKey)) continue;
       if (d?.[23] !== 2) continue;
       const itemAlbums = [];
-      for (const [albumId, keys] of albumToKeys) {
-        if (keys.has(mediaKey)) itemAlbums.push({ albumId, albumTitle: albumTitleMap.get(albumId) || '' });
+      if (!scanAll) {
+        for (const [albumId, keys] of albumToKeys) {
+          if (keys.has(mediaKey)) itemAlbums.push({ albumId, albumTitle: albumTitleMap.get(albumId) || '' });
+        }
       }
       manifest.push({
         mediaKey,
@@ -511,7 +525,7 @@ async function opScanFull({ albumIds } = {}) {
         sizeBytes: d?.[9] ?? 0,
         consumesQuota: true,
         isOriginalQuality: d?.[18] === 2,
-        albums: itemAlbums,
+        ...(scanAll ? {} : { albums: itemAlbums }),
       });
       existingKeys.add(mediaKey);
       added++;
@@ -549,28 +563,30 @@ async function opScanFull({ albumIds } = {}) {
       log('All items already have dedupKeys.', 'success');
     }
 
-    // Phase 3: Check other albums for additional memberships
-    const targetSet = new Set(manifest.filter(i => i.consumesQuota).map(i => i.mediaKey));
-    const otherAlbums = allAlbums.filter(a => !albumIds.includes(a.albumId));
-    if (targetSet.size > 0 && otherAlbums.length > 0) {
-      log(`Checking ${otherAlbums.length} other albums for additional memberships...`);
-      const keyToItem = new Map(manifest.map(i => [i.mediaKey, i]));
-      let extraFound = 0;
-      for (const { albumId, title } of otherAlbums) {
-        const albumItems = await enumerateAll(cdp, tokens, { albumId });
-        for (const rawItem of albumItems) {
-          const key = rawItem?.[0];
-          if (!key || !targetSet.has(key)) continue;
-          const item = keyToItem.get(key);
-          if (!item) continue;
-          if (!item.albums) item.albums = [];
-          if (!item.albums.find(a => a.albumId === albumId)) {
-            item.albums.push({ albumId, albumTitle: title });
-            extraFound++;
+    // Phase 3: Check other albums for additional memberships (album-based scan only)
+    if (!scanAll) {
+      const targetSet = new Set(manifest.filter(i => i.consumesQuota).map(i => i.mediaKey));
+      const otherAlbums = allAlbums.filter(a => !albumIds.includes(a.albumId));
+      if (targetSet.size > 0 && otherAlbums.length > 0) {
+        log(`Checking ${otherAlbums.length} other albums for additional memberships...`);
+        const keyToItem = new Map(manifest.map(i => [i.mediaKey, i]));
+        let extraFound = 0;
+        for (const { albumId, title } of otherAlbums) {
+          const albumItems = await enumerateAll(cdp, tokens, { albumId });
+          for (const rawItem of albumItems) {
+            const key = rawItem?.[0];
+            if (!key || !targetSet.has(key)) continue;
+            const item = keyToItem.get(key);
+            if (!item) continue;
+            if (!item.albums) item.albums = [];
+            if (!item.albums.find(a => a.albumId === albumId)) {
+              item.albums.push({ albumId, albumTitle: title });
+              extraFound++;
+            }
           }
         }
+        if (extraFound > 0) { writeManifest(manifest); log(`Found ${extraFound} additional memberships.`, 'success'); }
       }
-      if (extraFound > 0) { writeManifest(manifest); log(`Found ${extraFound} additional memberships.`, 'success'); }
     }
 
     const totalQuota = manifest.filter(i => i.consumesQuota).length;
@@ -1055,6 +1071,7 @@ async function handle(req, res) {
         photosTabs: photosTabs.map(t => ({ url: t.url, title: t.title })),
         manifest: manifestStats(readManifest()),
         currentOp,
+        adbBinaryFound: fs.existsSync(ADB_PATH),
         adbConnected: checkAdb(),
         workDir: WORK_DIR,
         downloadsDir: DOWNLOADS_DIR,
@@ -1117,7 +1134,7 @@ async function handle(req, res) {
   }
 
   const ops = {
-    '/api/scan-full':       () => body.albumIds?.length ? opScanFull(body) : Promise.resolve({ error: 'albumIds required' }),
+    '/api/scan-full':       () => opScanFull(body),
     '/api/scan':            () => opScan(body),
     '/api/enrich':          () => opEnrich(),
     '/api/save-albums':     () => opSaveAlbums(),
