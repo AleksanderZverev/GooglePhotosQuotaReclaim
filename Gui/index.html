@@ -121,6 +121,28 @@ button.small { padding: 4px 12px; font-size: 12px; }
 .popup-body b { color: var(--text); }
 .popup-body code { background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 4px; font-family: Consolas, 'Cascadia Code', monospace; font-size: 12px; }
 .popup-footer { display: flex; justify-content: flex-end; }
+
+/* Manifest viewer */
+.viewer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 300; display: flex; align-items: center; justify-content: center; }
+.viewer-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px 16px; width: min(720px, 96vw); max-height: 85vh; display: flex; flex-direction: column; gap: 12px; }
+.viewer-header { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.viewer-header h2 { font-size: 14px; font-weight: 700; flex: 1; }
+.viewer-search { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; font-size: 12px; color: var(--text); font-family: inherit; width: 180px; outline: none; }
+.viewer-search:focus { border-color: var(--accent); }
+.viewer-list { flex: 1; overflow-y: auto; min-height: 0; }
+.viewer-row { display: flex; align-items: flex-start; gap: 10px; padding: 7px 2px; border-bottom: 1px solid rgba(255,255,255,.05); }
+.viewer-row:last-child { border-bottom: none; }
+.viewer-info { flex: 1; min-width: 0; }
+.viewer-fname { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer-albums { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+.viewer-tag { background: var(--border); padding: 1px 6px; border-radius: 3px; font-size: 10px; color: var(--muted); white-space: nowrap; }
+.viewer-tag.no-album { color: var(--muted2); font-style: italic; }
+.viewer-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+.viewer-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; }
+.viewer-badge.oq { background: rgba(251,191,36,.15); color: var(--warn); }
+.viewer-badge.ss { background: var(--border); color: var(--muted2); }
+.viewer-size { font-size: 10px; color: var(--muted2); }
+.viewer-footer { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; font-size: 11px; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -203,7 +225,10 @@ button.small { padding: 4px 12px; font-size: 12px; }
               <span id="chk-scan-all-label">Scan all library (ignore album selection)</span>
             </label>
           </div>
-          <button class="small primary step-btn" id="btn-scan-full" onclick="runScanFull()" disabled>Scan</button>
+          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+            <button class="small primary step-btn" id="btn-scan-full" onclick="runScanFull()" disabled>Scan</button>
+            <button class="small step-btn" id="btn-view-scanned" onclick="showScannedItems()" disabled>View</button>
+          </div>
         </div>
 
         <div class="step">
@@ -214,7 +239,10 @@ button.small { padding: 4px 12px; font-size: 12px; }
             <div class="step-desc" id="step3-note" style="margin-top:3px"></div>
             <div class="step-stat pending" id="sstat-3">Scan first</div>
           </div>
-          <button class="small step-btn" id="btn-match" onclick="matchAlbums()" disabled>Match</button>
+          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+            <button class="small primary step-btn" id="btn-match" onclick="matchAlbums()" disabled>Match</button>
+            <button class="small step-btn" id="btn-view-unmatched" onclick="showUnmatchedItems()" disabled>Unmatched</button>
+          </div>
         </div>
 
         <div class="step">
@@ -274,6 +302,22 @@ button.small { padding: 4px 12px; font-size: 12px; }
     <div id="logOutput"></div>
   </div>
 </main>
+
+<!-- Manifest viewer -->
+<div id="viewer-overlay" class="viewer-overlay" style="display:none" onclick="closeViewer()">
+  <div class="viewer-box" onclick="event.stopPropagation()">
+    <div class="viewer-header">
+      <h2 id="viewer-title"></h2>
+      <input class="viewer-search" id="viewer-search" type="text" placeholder="Search...">
+      <button class="small" onclick="closeViewer()">✕</button>
+    </div>
+    <div class="viewer-list" id="viewer-list"></div>
+    <div class="viewer-footer">
+      <span id="viewer-count"></span>
+      <button class="small primary" onclick="closeViewer()" id="viewer-close-btn">Close</button>
+    </div>
+  </div>
+</div>
 
 <!-- Info popup -->
 <div id="popup-overlay" class="popup-overlay" style="display:none">
@@ -343,6 +387,7 @@ const LANGS = {
     step2Pending2: 'Ready to scan',
     step2Done: (n) => `${n} quota item${n > 1 ? 's' : ''} found`,
     btnScan: 'Scan',
+    btnViewScanned: 'View',
     chkScanAll: 'Scan all library (ignore album selection)',
 
     step3Name: 'Match Downloads',
@@ -352,6 +397,17 @@ const LANGS = {
     step3Pending2: 'Place files in ./downloads/, then match',
     step3Done: (n, total) => `${n}/${total} files matched`,
     btnMatch: 'Match',
+    btnViewUnmatched: 'View',
+
+    viewerScannedTitle: 'Scanned quota items',
+    viewerUnmatchedTitle: 'Unmatched items (no local file)',
+    viewerSearch: 'Search...',
+    viewerOriginalQuality: 'Original',
+    viewerStorageSaver: 'Storage Saver',
+    viewerNoAlbum: 'No album',
+    viewerClose: 'Close',
+    viewerCountAll: (n) => `${n} items`,
+    viewerCountFiltered: (n, total) => `${n} of ${total}`,
 
     step4Name: 'Trash + Reupload',
     step4Desc: 'Delete from cloud · push to Pixel · ',
@@ -495,6 +551,7 @@ When you click Load, the app asks Chrome to fetch your album list using the same
     step2Pending2: 'Готово к сканированию',
     step2Done: (n) => `Найдено квотных: ${n}`,
     btnScan: 'Сканировать',
+    btnViewScanned: 'Смотреть',
     chkScanAll: 'Сканировать всю библиотеку (без фильтра по альбомам)',
 
     step3Name: 'Привязать загрузки',
@@ -504,6 +561,17 @@ When you click Load, the app asks Chrome to fetch your album list using the same
     step3Pending2: 'Положи файлы в ./downloads/, затем привяжи',
     step3Done: (n, total) => `Привязано: ${n}/${total}`,
     btnMatch: 'Привязать',
+    btnViewUnmatched: 'Смотреть',
+
+    viewerScannedTitle: 'Отсканированные квотные фото',
+    viewerUnmatchedTitle: 'Не сматченные (нет локального файла)',
+    viewerSearch: 'Поиск...',
+    viewerOriginalQuality: 'Оригинал',
+    viewerStorageSaver: 'Эконом',
+    viewerNoAlbum: 'Без альбома',
+    viewerClose: 'Закрыть',
+    viewerCountAll: (n) => `${n} элементов`,
+    viewerCountFiltered: (n, total) => `${n} из ${total}`,
 
     step4Name: 'Удалить + залить',
     step4Desc: 'Удалить из облака · загрузить на Pixel · ',
@@ -687,8 +755,13 @@ function applyLang() {
   setText('step7-desc', t('step7Desc'));
 
   setText('btn-scan-full', t('btnScan'));
+  setText('btn-view-scanned', t('btnViewScanned'));
   setText('chk-scan-all-label', t('chkScanAll'));
   setText('btn-match', t('btnMatch'));
+  setText('btn-view-unmatched', t('btnViewUnmatched'));
+  setText('viewer-close-btn', t('viewerClose'));
+  const vsearch = document.getElementById('viewer-search');
+  if (vsearch) vsearch.placeholder = t('viewerSearch');
   setText('btn-trash-reupload', t('btnTrash'));
   setText('btn-verify', t('btnVerify'));
   setText('btn-restore-albums', t('btnRestore'));
@@ -925,7 +998,9 @@ function updateButtonStates() {
   };
 
   setBtn('btn-scan-full', scanAll || sel.length > 0);
+  setBtn('btn-view-scanned', (s.quota ?? 0) > 0);
   setBtn('btn-match', (s.quota ?? 0) > 0 || sel.length > 0);
+  setBtn('btn-view-unmatched', (s.quota ?? 0) > 0);
   setBtn('btn-trash-reupload', (s.downloaded ?? 0) > 0);
   setBtn('btn-verify', (s.trashed ?? 0) > 0);
   setBtn('btn-restore-albums', (s.verified ?? 0) > 0);
@@ -1136,6 +1211,73 @@ function appendLog(text, level = 'info') {
 }
 
 function clearLog() { document.getElementById('logOutput').innerHTML = ''; }
+
+// ── Manifest Viewer ───────────────────────────────────────────────────────────
+
+let _viewerItems = [];
+
+async function showScannedItems() {
+  const r = await fetch(`${API}/api/manifest`).then(r => r.json());
+  const items = (r.manifest || []).filter(i => i.consumesQuota);
+  openViewer(t('viewerScannedTitle'), items);
+}
+
+async function showUnmatchedItems() {
+  const r = await fetch(`${API}/api/manifest`).then(r => r.json());
+  const items = (r.manifest || []).filter(i => i.consumesQuota && !i.downloaded);
+  openViewer(t('viewerUnmatchedTitle'), items);
+}
+
+function openViewer(title, items) {
+  _viewerItems = items;
+  document.getElementById('viewer-title').textContent = title;
+  const search = document.getElementById('viewer-search');
+  search.value = '';
+  search.oninput = () => renderViewerItems(_viewerItems, search.value.toLowerCase());
+  renderViewerItems(items, '');
+  document.getElementById('viewer-overlay').style.display = 'flex';
+  setTimeout(() => search.focus(), 50);
+}
+
+function renderViewerItems(items, query) {
+  const filtered = query
+    ? items.filter(i =>
+        (i.filename || '').toLowerCase().includes(query) ||
+        (i.albums || []).some(a => (a.albumTitle || '').toLowerCase().includes(query)))
+    : items;
+
+  const html = filtered.map(item => {
+    const fname = item.filename || item.mediaKey.slice(0, 20);
+    const isOq = item.isOriginalQuality;
+    const badge = `<span class="viewer-badge ${isOq ? 'oq' : 'ss'}">${isOq ? t('viewerOriginalQuality') : t('viewerStorageSaver')}</span>`;
+    const sizeMb = item.sizeBytes ? `${(item.sizeBytes / 1048576).toFixed(1)} MB` : '';
+    const albums = item.albums?.length
+      ? item.albums.map(a => `<span class="viewer-tag">${escHtml(a.albumTitle || a.albumId)}</span>`).join('')
+      : `<span class="viewer-tag no-album">${t('viewerNoAlbum')}</span>`;
+    return `<div class="viewer-row">
+      <div class="viewer-info">
+        <div class="viewer-fname" title="${escHtml(fname)}">${escHtml(fname)}</div>
+        <div class="viewer-albums">${albums}</div>
+      </div>
+      <div class="viewer-meta">${badge}<span class="viewer-size">${sizeMb}</span></div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('viewer-list').innerHTML = html || `<div class="empty">${escHtml(query ? 'No matches' : 'No items')}</div>`;
+  document.getElementById('viewer-count').textContent = query
+    ? t('viewerCountFiltered', filtered.length, items.length)
+    : t('viewerCountAll', items.length);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function closeViewer() {
+  document.getElementById('viewer-overlay').style.display = 'none';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeViewer(); });
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
