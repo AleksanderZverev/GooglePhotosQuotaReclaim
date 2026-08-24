@@ -930,6 +930,7 @@ function updateStats(s) {
   set('sRestored', s.restored);
   updateStepStats(s);
   updateStepDoneFromStats(s);
+  updateButtonStates();
 }
 
 function updateStepDoneFromStats(s) {
