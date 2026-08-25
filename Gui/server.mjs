@@ -335,14 +335,21 @@ async function opScan({ albumIds } = {}) {
     log(`Scanning... (account: ${tokens.path})`);
 
     const rawItems = [];
+    const albumToKeys = new Map();
+    let albumTitleMap = new Map();
+
     if (albumIds?.length) {
+      const allAlbums = await listAllAlbums(cdp, tokens);
+      albumTitleMap = new Map(allAlbums.map(a => [a.albumId, a.title]));
       for (const albumId of albumIds) {
-        log(`Enumerating album ${albumId}...`);
+        const title = albumTitleMap.get(albumId) || albumId.slice(-8);
+        log(`Enumerating album "${title}"...`);
         const items = await enumerateAll(cdp, tokens, {
           albumId,
           onPage: (p, total) => log(`  Album page ${p}: ${total} items`),
         });
         rawItems.push(...items);
+        albumToKeys.set(albumId, new Set(items.map(i => i?.[0]).filter(Boolean)));
       }
     } else {
       const items = await enumerateAll(cdp, tokens, {
@@ -353,8 +360,9 @@ async function opScan({ albumIds } = {}) {
 
     log(`Enumerated ${rawItems.length} items. Checking quota...`);
     const dedupMap = new Map(rawItems.filter(i => i?.[0] && i?.[3]).map(i => [i[0], i[3]]));
-    const mediaKeys = rawItems.map(i => i?.[0]).filter(Boolean);
-    const quotaInfos = await batchQuotaInfo(cdp, tokens, mediaKeys);
+    const seen = new Set();
+    const uniqueKeys = rawItems.map(i => i?.[0]).filter(k => k && !seen.has(k) && seen.add(k));
+    const quotaInfos = await batchQuotaInfo(cdp, tokens, uniqueKeys);
 
     const manifest = readManifest();
     const existingKeys = new Set(manifest.map(m => m.mediaKey));
@@ -365,6 +373,10 @@ async function opScan({ albumIds } = {}) {
       const inExisting = existingKeys.has(mediaKey);
       if (!mediaKey || inExisting) continue;
       if (qi?.[30]?.[0] !== 1) continue;
+      const itemAlbums = [];
+      for (const [albumId, keys] of albumToKeys) {
+        if (keys.has(mediaKey)) itemAlbums.push({ albumId, albumTitle: albumTitleMap.get(albumId) || '' });
+      }
       manifest.push({
         mediaKey,
         dedupKey: dedupMap.get(mediaKey) || null,
@@ -372,13 +384,51 @@ async function opScan({ albumIds } = {}) {
         sizeBytes: qi?.[5] ?? 0,
         consumesQuota: true,
         isOriginalQuality: qi?.[14] === 2,
+        albums: itemAlbums.length > 0 ? itemAlbums : undefined,
       });
       existingKeys.add(mediaKey);
       added++;
     }
 
     writeManifest(manifest);
-    const summary = `Added ${added} new quota items. Total quota: ${manifest.filter(i => i.consumesQuota).length}`;
+    log(`Added ${added} new quota items. Total quota: ${manifest.filter(i => i.consumesQuota).length}`, 'success');
+
+    // Save album memberships for all quota items
+    const targetSet = new Set(manifest.filter(i => i.consumesQuota).map(i => i.mediaKey));
+    if (targetSet.size > 0) {
+      if (!albumIds?.length) {
+        // Full library scan — need to load albums now
+        allAlbums = await listAllAlbums(cdp, tokens);
+        albumTitleMap = new Map(allAlbums.map(a => [a.albumId, a.title]));
+      }
+      // For album scan: check all OTHER albums (selected ones already covered by albumToKeys above)
+      const albumsToCheck = albumIds?.length
+        ? allAlbums.filter(a => !albumIds.includes(a.albumId))
+        : allAlbums;
+      if (albumsToCheck.length > 0) {
+        log(`Checking ${albumsToCheck.length} album${albumsToCheck.length !== 1 ? 's' : ''} for memberships...`);
+        const keyToItem = new Map(manifest.map(i => [i.mediaKey, i]));
+        let found = 0;
+        for (const { albumId, title } of albumsToCheck) {
+          const albumItems = await enumerateAll(cdp, tokens, { albumId });
+          for (const rawItem of albumItems) {
+            const key = rawItem?.[0];
+            if (!key || !targetSet.has(key)) continue;
+            const item = keyToItem.get(key);
+            if (!item) continue;
+            if (!item.albums) item.albums = [];
+            if (!item.albums.find(a => a.albumId === albumId)) {
+              item.albums.push({ albumId, albumTitle: title });
+              found++;
+            }
+          }
+        }
+        if (found > 0) { writeManifest(manifest); log(`Saved ${found} album memberships.`, 'success'); }
+        else log('No album memberships found.', 'info');
+      }
+    }
+
+    const summary = `Done. ${manifest.filter(i => i.consumesQuota).length} quota items ready.`;
     log(summary, 'success');
     opEnd('scan', true, summary);
     return { ok: true, added };
