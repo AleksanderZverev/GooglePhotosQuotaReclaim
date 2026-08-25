@@ -99,6 +99,23 @@ export async function batchQuotaInfo(cdp, tokens, mediaKeys) {
   return results;
 }
 
+export async function archivePhoto(cdp, tokens, dedupKey) {
+  const r = await cdp.evaluate(`
+    (async () => {
+      const d = [[[null,[1],[null,${JSON.stringify(dedupKey)}]]],null,1];
+      const w = [[['w7TP3c', JSON.stringify(d), null, 'generic']]];
+      const body = 'f.req=' + encodeURIComponent(JSON.stringify(w)) + '&at=' + encodeURIComponent(${JSON.stringify(tokens.at)}) + '&';
+      const p = new URLSearchParams({ rpcids: 'w7TP3c', 'source-path': ${JSON.stringify(tokens.path)}, 'f.sid': ${JSON.stringify(tokens.fsid)}, bl: ${JSON.stringify(tokens.bl)}, pageId: 'none', rt: 'c' });
+      const resp = await fetch(${JSON.stringify(`https://photos.google.com${tokens.path}data/batchexecute?`)} + p, {
+        method: 'POST', credentials: 'include',
+        headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body,
+      });
+      const t = await resp.text();
+      return { status: resp.status, hasError: t.includes('"er"') };
+    })()`);
+  if (r.status !== 200 || r.hasError) throw new Error(`w7TP3c status=${r.status} hasError=${r.hasError}`);
+}
+
 export async function listAllAlbums(cdp, tokens) {
   const accountMatch = tokens.path.match(/^(\/u\/\d+\/)/);
   const accountPrefix = accountMatch ? accountMatch[1] : '/';

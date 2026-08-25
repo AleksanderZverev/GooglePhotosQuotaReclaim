@@ -1,5 +1,5 @@
 import { connectCdp } from '../lib/cdp.mjs';
-import { getTokens } from '../lib/rpc.mjs';
+import { getTokens, archivePhoto } from '../lib/rpc.mjs';
 import { readManifest, writeManifest } from '../lib/manifest.mjs';
 import { log, opStart, opEnd } from '../lib/sse.mjs';
 
@@ -44,27 +44,59 @@ export async function restoreAlbumsStep() {
   const cdp = await connectCdp();
   try {
     const manifest = readManifest();
-    const items = manifest.filter(i => i.verified && i.newMediaKey && i.albums?.length && !i.albumsRestored);
-    if (!items.length) {
-      const msg = 'No items to restore into albums';
+    const tokens = await getTokens(cdp);
+
+    // --- Part 1: Restore album memberships ---
+    const albumItems = manifest.filter(i => i.verified && i.newMediaKey && i.albums?.length && !i.albumsRestored);
+    let totalRestored = 0;
+    if (albumItems.length) {
+      log(`Restoring ${albumItems.length} items into albums...`);
+      const albumGroups = groupItemsByAlbum(albumItems);
+      for (const [albumId, { title, items: grpItems }] of albumGroups) {
+        log(`Album "${title}": ${grpItems.length} items`);
+        totalRestored += await restoreItemsIntoAlbum(cdp, tokens, albumId, grpItems);
+        for (const item of grpItems) { item.albumsRestored = true; item.albumsRestoredAt = new Date().toISOString(); }
+      }
+      writeManifest(manifest);
+      log(`Restored ${totalRestored} items into albums.`, 'success');
+    }
+
+    // --- Part 2: Re-archive photos that were originally archived ---
+    const toArchive = manifest.filter(i => i.verified && i.newMediaKey && i.isArchived && !i.archivedRestored);
+    let archivedCount = 0;
+    if (toArchive.length) {
+      log(`Re-archiving ${toArchive.length} items...`);
+      for (const item of toArchive) {
+        const label = item.filename || item.mediaKey.slice(0, 16);
+        try {
+          await archivePhoto(cdp, tokens, item.dedupKey);
+          item.archivedRestored = true;
+          item.archivedRestoredAt = new Date().toISOString();
+          archivedCount++;
+          log(`  Archived: ${label}`);
+        } catch (err) {
+          log(`  Archive failed ${label}: ${err.message}`, 'warn');
+        }
+        await new Promise(r => setTimeout(r, 200));
+      }
+      writeManifest(manifest);
+      log(`Archived ${archivedCount}/${toArchive.length} items.`, archivedCount === toArchive.length ? 'success' : 'warn');
+    }
+
+    if (!albumItems.length && !toArchive.length) {
+      const msg = 'No items to restore into albums or re-archive';
       log(msg, 'success');
       opEnd('restore-albums', true, msg);
-      return { ok: true, restored: 0 };
+      return { ok: true, restored: 0, archived: 0 };
     }
-    log(`Restoring ${items.length} items into albums...`);
-    const tokens = await getTokens(cdp);
-    const albumGroups = groupItemsByAlbum(items);
-    let totalRestored = 0;
-    for (const [albumId, { title, items: albumItems }] of albumGroups) {
-      log(`Album "${title}": ${albumItems.length} items`);
-      totalRestored += await restoreItemsIntoAlbum(cdp, tokens, albumId, albumItems);
-      for (const item of albumItems) { item.albumsRestored = true; item.albumsRestoredAt = new Date().toISOString(); }
-    }
-    writeManifest(manifest);
-    const summary = `Restored ${totalRestored} items into albums.`;
+
+    const summary = [
+      totalRestored ? `${totalRestored} items restored into albums` : '',
+      archivedCount ? `${archivedCount} items re-archived` : '',
+    ].filter(Boolean).join(', ') + '.';
     log(summary, 'success');
     opEnd('restore-albums', true, summary);
-    return { ok: true, restored: totalRestored };
+    return { ok: true, restored: totalRestored, archived: archivedCount };
   } catch (err) {
     log(`Restore albums failed: ${err.message}`, 'error');
     opEnd('restore-albums', false, err.message);
