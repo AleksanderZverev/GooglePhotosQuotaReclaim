@@ -82,42 +82,30 @@ async function run() {
 
   const result = await cdp.evaluate(`
     (async () => {
-      const rpcid = 'fDcn4b';
-      const mediaKeys = ['${MEDIA_KEY}'];
-      const wrappedData = [[[rpcid, JSON.stringify(mediaKeys), null, '1']]];
-      const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrappedData)) + '&at=' + encodeURIComponent('${tokens.at}') + '&';
-      const accountPrefix = (window.location.pathname.match(/^\/u\/\d+/) || [''])[0];
+      const key = '${MEDIA_KEY}';
+      const prefix = (window.location.pathname.match(/^\/u\/\d+/) || [''])[0];
+      const wrapped = [[["fDcn4b", JSON.stringify([key]), null, "1"]]];
+      const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrapped)) + '&at=' + encodeURIComponent('${tokens.at}') + '&';
       const params = new URLSearchParams({
-        rpcids: rpcid,
-        'source-path': accountPrefix + '/photo/' + mediaKeys[0],
-        'f.sid': '${tokens.fsid}',
-        bl: '${tokens.bl}',
-        pageId: 'none',
-        rt: 'c',
+        rpcids: 'fDcn4b', 'source-path': prefix + '/photo/' + key,
+        'f.sid': '${tokens.fsid}', bl: '${tokens.bl}', pageId: 'none', rt: 'c',
       });
-      const url = 'https://photos.google.com${tokens.path}data/batchexecute?' + params.toString();
-      const resp = await fetch(url, {
-        headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body,
-        method: 'POST',
-        credentials: 'include',
-      });
+      const url = 'https://photos.google.com${tokens.path}data/batchexecute?' + params;
+      const resp = await fetch(url, { method: 'POST', credentials: 'include', headers: {'content-type': 'application/x-www-form-urlencoded;charset=UTF-8'}, body });
       const text = await resp.text();
-      const lines = text.split('\\n').filter(l => l.includes('wrb.fr'));
-      if (!lines.length) return { error: 'No wrb.fr envelope', raw: text.slice(0, 500) };
-      const parsed = JSON.parse(lines[0]);
-      const payload = JSON.parse(parsed[0][2]);
-      const item = (payload || [])[0];
+      const line = text.split('\\n').find(l => l.includes('wrb.fr'));
+      if (!line) return { error: 'No wrb.fr envelope', raw: text.slice(0, 500) };
+      const item = JSON.parse(JSON.parse(line)[0][2])?.[0];
       if (!item) return { error: 'No item data returned' };
       return {
-        mediaKey: item?.[0],
-        fileName: item?.[2],
-        size: item?.[5],
-        timestamp: item?.[3],
-        takesUpSpace: item?.[30]?.[0] === 1,
-        spaceTaken: item?.[5],
-        isOriginalQuality: item?.[14] === 2,
-        rawLastArr: item?.[30],
+        mediaKey: item[0],
+        fileName: item[2],
+        size: item[5],
+        timestamp: item[3],
+        takesUpSpace: item[30]?.[0] === 1,
+        spaceTaken: item[5],
+        isOriginalQuality: item[14] === 2,
+        rawLastArr: item[30],
       };
     })()
   `);

@@ -136,30 +136,32 @@ async function run() {
     // Batch check quota
     const quotaResult = await cdp.evaluate(`
       (async () => {
-        const rpcid = 'fDcn4b';
-        const mediaKeys = ${JSON.stringify(pageResult.items)};
-        const wrappedData = [[[rpcid, JSON.stringify(mediaKeys), null, '1']]];
-        const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrappedData)) + '&at=' + encodeURIComponent('${tokens.at}') + '&';
-        const accountPrefix = (window.location.pathname.match(/^\/u\/\d+/) || [''])[0];
-        const params = new URLSearchParams({
-          rpcids: rpcid, 'source-path': accountPrefix + '/photo/' + mediaKeys[0], 'f.sid': '${tokens.fsid}', bl: '${tokens.bl}', pageId: 'none', rt: 'c',
-        });
-        const url = 'https://photos.google.com${tokens.path}data/batchexecute?' + params.toString();
-        const resp = await fetch(url, {
-          headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-          body, method: 'POST', credentials: 'include',
-        });
-        const text = await resp.text();
-        const lines = text.split('\\n').filter(l => l.includes('wrb.fr'));
-        if (!lines.length) return [];
-        const parsed = JSON.parse(lines[0]);
-        const payload = JSON.parse(parsed[0][2]);
-        return (payload || []).map(item => {
+        const keys = ${JSON.stringify(pageResult.items)};
+        const prefix = (window.location.pathname.match(/^\/u\/\d+/) || [''])[0];
+        const fetched = await Promise.all(keys.map(async key => {
+          try {
+            const wrapped = [[["fDcn4b", JSON.stringify([key]), null, "1"]]];
+            const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrapped)) + '&at=' + encodeURIComponent('${tokens.at}') + '&';
+            const params = new URLSearchParams({
+              rpcids: 'fDcn4b', 'source-path': prefix + '/photo/' + key,
+              'f.sid': '${tokens.fsid}', bl: '${tokens.bl}', pageId: 'none', rt: 'c',
+            });
+            const url = 'https://photos.google.com${tokens.path}data/batchexecute?' + params;
+            const resp = await fetch(url, { method: 'POST', credentials: 'include', headers: {'content-type': 'application/x-www-form-urlencoded;charset=UTF-8'}, body });
+            const text = await resp.text();
+            const line = text.split('\\n').find(l => l.includes('wrb.fr'));
+            if (!line) return null;
+            const item = JSON.parse(JSON.parse(line)[0][2])?.[0];
+            if (!item) return null;
+            return { mediaKey: item[0], fileName: item[2], takesUpSpace: item[30]?.[0] === 1, isOriginalQuality: item[14] === 2 };
+          } catch { return null; }
+        }));
+        return fetched.filter(Boolean).map(item => {
           return {
-            mediaKey: item?.[0],
-            fileName: item?.[2],
-            takesUpSpace: item?.[30]?.[0] === 1,
-            isOriginalQuality: item?.[14] === 2,
+            mediaKey: item.mediaKey,
+            fileName: item.fileName,
+            takesUpSpace: item.takesUpSpace,
+            isOriginalQuality: item.isOriginalQuality,
           };
         });
       })()

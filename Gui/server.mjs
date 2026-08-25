@@ -201,16 +201,35 @@ async function enumerateAll(cdp, tokens, { albumId = null, mode = 1, onPage } = 
 }
 
 async function batchQuotaInfo(cdp, tokens, mediaKeys) {
-  const BATCH = 5000;
+  // fDcn4b is per-photo — run PARALLEL requests simultaneously inside one cdp.evaluate
+  const PARALLEL = 50;
   const results = [];
-  // fDcn4b requires source-path = /u/N/photo/{key}; extract account prefix from current page
-  const prefix = await cdp.evaluate(`(window.location.pathname.match(/^\\/u\\/\\d+/) || [''])[0]`);
-  for (let i = 0; i < mediaKeys.length; i += BATCH) {
-    const chunk = mediaKeys.slice(i, i + BATCH);
-    const sourcePath = `${prefix}/photo/${chunk[0]}`;
-    const payload = await callRpc(cdp, 'fDcn4b', chunk, tokens, { reqType: '1', sourcePath });
-    const batch = payload ?? [];
-    results.push(...batch);
+  for (let i = 0; i < mediaKeys.length; i += PARALLEL) {
+    const chunk = mediaKeys.slice(i, i + PARALLEL);
+    const items = await cdp.evaluate(`
+      (async () => {
+        const keys = ${JSON.stringify(chunk)};
+        const prefix = (window.location.pathname.match(/^\\/u\\/\\d+/) || [''])[0];
+        const fetched = await Promise.all(keys.map(async key => {
+          try {
+            const wrapped = [[["fDcn4b", JSON.stringify([key]), null, "1"]]];
+            const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrapped)) + '&at=' + encodeURIComponent(${JSON.stringify(tokens.at)}) + '&';
+            const params = new URLSearchParams({
+              rpcids: 'fDcn4b', 'source-path': prefix + '/photo/' + key,
+              'f.sid': ${JSON.stringify(tokens.fsid)}, bl: ${JSON.stringify(tokens.bl)}, pageId: 'none', rt: 'c',
+            });
+            const url = ${JSON.stringify(`https://photos.google.com${tokens.path}data/batchexecute?`)} + params;
+            const resp = await fetch(url, { method: 'POST', credentials: 'include', headers: {'content-type': 'application/x-www-form-urlencoded;charset=UTF-8'}, body });
+            const text = await resp.text();
+            const line = text.split('\\n').find(l => l.includes('wrb.fr'));
+            if (!line) return null;
+            const payload = JSON.parse(JSON.parse(line)[0][2]);
+            return payload?.[0] ?? null;
+          } catch { return null; }
+        }));
+        return fetched.filter(Boolean);
+      })()`);
+    if (Array.isArray(items)) results.push(...items);
   }
   return results;
 }

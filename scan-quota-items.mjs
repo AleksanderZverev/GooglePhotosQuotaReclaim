@@ -10,7 +10,7 @@ const CDP_URL = 'http://127.0.0.1:9222';
 const OUTPUT_FILE = fileURLToPath(new URL('./quota-items-scan.json', import.meta.url));
 const MANIFEST_FILE = fileURLToPath(new URL('./manifest.json', import.meta.url));
 const PAGE_SIZE = 500;
-const INFO_BATCH_SIZE = 5000;
+const INFO_BATCH_SIZE = 50; // fDcn4b is per-photo; run this many in parallel per cdp.evaluate
 
 async function getCdpWebSocketUrl() {
   const resp = await fetch(`${CDP_URL}/json`);
@@ -162,8 +162,8 @@ async function run() {
 
   console.log(`\nLibrary enumeration complete: ${allMediaKeys.length} total items`);
 
-  // Phase 2: Batch check quota via EWgK9e
-  console.log(`\n=== Phase 2: Batch quota check (EWgK9e, ${INFO_BATCH_SIZE} keys/call) ===`);
+  // Phase 2: Parallel quota check via fDcn4b (per-photo RPC, run INFO_BATCH_SIZE in parallel)
+  console.log(`\n=== Phase 2: Quota check (fDcn4b, ${INFO_BATCH_SIZE} parallel/call) ===`);
   const quotaItems = [];
   let processed = 0;
 
@@ -175,49 +175,40 @@ async function run() {
 
     const batchResult = await cdp.evaluate(`
       (async () => {
-        const rpcid = 'fDcn4b';
-        const mediaKeys = ${JSON.stringify(batchKeys)};
-        const wrappedData = [[[rpcid, JSON.stringify(mediaKeys), null, '1']]];
-        const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrappedData)) + '&at=' + encodeURIComponent('${tokens.at}') + '&';
-        const accountPrefix = (window.location.pathname.match(/^\/u\/\d+/) || [''])[0];
-        const params = new URLSearchParams({
-          rpcids: rpcid,
-          'source-path': accountPrefix + '/photo/' + mediaKeys[0],
-          'f.sid': '${tokens.fsid}',
-          bl: '${tokens.bl}',
-          pageId: 'none',
-          rt: 'c',
-        });
-        const url = 'https://photos.google.com${tokens.path}data/batchexecute?' + params.toString();
-        const resp = await fetch(url, {
-          headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-          body,
-          method: 'POST',
-          credentials: 'include',
-        });
-        const text = await resp.text();
-        const lines = text.split('\\n').filter(l => l.includes('wrb.fr'));
-        if (!lines.length) return { error: 'No wrb.fr envelope', status: resp.status };
-        const parsed = JSON.parse(lines[0]);
-        const payload = JSON.parse(parsed[0][2]);
-        const itemsData = payload || [];
-        const results = itemsData.map(item => {
-          return {
-            mediaKey: item?.[0],
-            fileName: item?.[2],
-            size: item?.[5],
-            timestamp: item?.[3],
-            takesUpSpace: item?.[30]?.[0] === 1,
-            spaceTaken: item?.[5],
-            isOriginalQuality: item?.[14] === 2,
-          };
-        });
-        return { results };
+        const keys = ${JSON.stringify(batchKeys)};
+        const prefix = (window.location.pathname.match(/^\/u\/\d+/) || [''])[0];
+        const fetched = await Promise.all(keys.map(async key => {
+          try {
+            const wrapped = [[["fDcn4b", JSON.stringify([key]), null, "1"]]];
+            const body = 'f.req=' + encodeURIComponent(JSON.stringify(wrapped)) + '&at=' + encodeURIComponent('${tokens.at}') + '&';
+            const params = new URLSearchParams({
+              rpcids: 'fDcn4b', 'source-path': prefix + '/photo/' + key,
+              'f.sid': '${tokens.fsid}', bl: '${tokens.bl}', pageId: 'none', rt: 'c',
+            });
+            const url = 'https://photos.google.com${tokens.path}data/batchexecute?' + params;
+            const resp = await fetch(url, { method: 'POST', credentials: 'include', headers: {'content-type': 'application/x-www-form-urlencoded;charset=UTF-8'}, body });
+            const text = await resp.text();
+            const line = text.split('\\n').find(l => l.includes('wrb.fr'));
+            if (!line) return null;
+            const item = JSON.parse(JSON.parse(line)[0][2])?.[0];
+            if (!item) return null;
+            return {
+              mediaKey: item[0],
+              fileName: item[2],
+              size: item[5],
+              timestamp: item[3],
+              takesUpSpace: item[30]?.[0] === 1,
+              spaceTaken: item[5],
+              isOriginalQuality: item[14] === 2,
+            };
+          } catch { return null; }
+        }));
+        return { results: fetched.filter(Boolean) };
       })()
     `);
 
-    if (batchResult?.error) {
-      console.error(`Batch ${batchNum}/${totalBatches} error: ${batchResult.error}`);
+    if (!batchResult?.results) {
+      console.error(`Batch ${batchNum}/${totalBatches} error: no results`);
       continue;
     }
 
