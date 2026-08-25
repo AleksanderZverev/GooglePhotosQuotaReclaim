@@ -24,7 +24,7 @@ async function enumerateSelectedAlbums(cdp, tokens, albumIds) {
       onPage: (p, total) => log(`  Album page ${p}: ${total} items`),
     });
     rawItems.push(...items);
-    albumToKeys.set(albumId, new Set(items.map(i => i?.[0]).filter(Boolean)));
+    albumToKeys.set(albumId, new Set(items.map(i => i?.[3] || i?.[0]).filter(Boolean)));
   }
   return { rawItems, albumToKeys, albumTitleMap };
 }
@@ -32,7 +32,7 @@ async function enumerateSelectedAlbums(cdp, tokens, albumIds) {
 function deduplicateItems(rawItems) {
   const seen = new Set();
   return rawItems.filter(i => {
-    const k = i?.[0];
+    const k = i?.[3] || i?.[0]; // prefer dedupKey, fallback to mediaKey
     if (!k || seen.has(k)) return false;
     seen.add(k);
     return true;
@@ -47,22 +47,25 @@ function buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKe
   const newEntries = [];
   for (const qi of quotaInfos) {
     const mediaKey = qi?.[0];
-    if (!mediaKey || existingKeys.has(mediaKey)) continue;
+    if (!mediaKey) continue;
     if (qi?.[30]?.[0] !== 1) continue;
+    const dedupKey = dedupMap.get(mediaKey) || null;
+    const key = dedupKey || mediaKey;
+    if (existingKeys.has(key)) continue;
     const itemAlbums = [];
     for (const [albumId, keys] of albumToKeys) {
-      if (keys.has(mediaKey)) itemAlbums.push({ albumId, albumTitle: albumTitleMap.get(albumId) || '' });
+      if (keys.has(key)) itemAlbums.push({ albumId, albumTitle: albumTitleMap.get(albumId) || '' });
     }
     newEntries.push({
       mediaKey,
-      dedupKey: dedupMap.get(mediaKey) || null,
+      dedupKey,
       filename: qi?.[2] ?? '',
       sizeBytes: qi?.[5] ?? 0,
       consumesQuota: true,
       isOriginalQuality: qi?.[14] === 2,
       albums: itemAlbums.length > 0 ? itemAlbums : undefined,
     });
-    existingKeys.add(mediaKey);
+    existingKeys.add(key);
   }
   return newEntries;
 }
@@ -112,13 +115,13 @@ export async function scanStep({ albumIds } = {}) {
       : await enumerateLibrary(cdp, tokens);
 
     log(`Enumerated ${rawItems.length} items. Checking quota...`);
-    const dedupMap = buildDedupMap(rawItems);
-    const seen = new Set();
-    const uniqueKeys = rawItems.map(i => i?.[0]).filter(k => k && !seen.has(k) && seen.add(k));
+    const uniqueItems = deduplicateItems(rawItems);
+    const dedupMap = buildDedupMap(uniqueItems);
+    const uniqueKeys = uniqueItems.map(i => i?.[0]).filter(Boolean);
     const quotaInfos = await batchQuotaInfo(cdp, tokens, uniqueKeys);
 
     const manifest = readManifest();
-    const existingKeys = new Set(manifest.map(m => m.mediaKey));
+    const existingKeys = new Set(manifest.map(m => m.dedupKey || m.mediaKey));
     const newEntries = buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap);
     manifest.push(...newEntries);
     writeManifest(manifest);
@@ -189,7 +192,7 @@ export async function scanFullStep({ albumIds } = {}) {
     const quotaInfos = await batchQuotaInfo(cdp, tokens, mediaKeys);
 
     const manifest = readManifest();
-    const existingKeys = new Set(manifest.map(m => m.mediaKey));
+    const existingKeys = new Set(manifest.map(m => m.dedupKey || m.mediaKey));
     const newEntries = buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap);
     manifest.push(...newEntries);
     writeManifest(manifest);
