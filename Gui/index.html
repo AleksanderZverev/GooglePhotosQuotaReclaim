@@ -181,7 +181,6 @@ button.small { padding: 4px 12px; font-size: 12px; }
   <button class="small primary" id="launchChromeBtn" onclick="launchChrome()">Launch Chrome</button>
   <button class="help-btn" onclick="showPopup('chrome')" title="?">?</button>
   <button class="small danger" id="deleteProfileBtn" onclick="deleteProfile()" style="display:none">Delete Profile</button>
-  <button class="small" onclick="refreshStatus()">↺</button>
   <button class="small danger" id="btn-reset" onclick="resetManifest()">Reset</button>
 </header>
 
@@ -205,7 +204,10 @@ button.small { padding: 4px 12px; font-size: 12px; }
   <div class="content">
     <!-- Stats -->
     <div>
-      <div class="section-title" id="stat-section-title">Manifest Stats</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div class="section-title" id="stat-section-title" style="margin-bottom:0">Manifest Stats</div>
+        <button class="small" onclick="refreshStatus()" title="Refresh status" style="padding:2px 8px;font-size:13px;line-height:1">↺</button>
+      </div>
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-label" id="stat-label-total">Total items</div><div class="stat-value" id="sTotal">—</div></div>
         <div class="stat-card"><div class="stat-label" id="stat-label-quota">Quota (takes space)</div><div class="stat-value quota" id="sQuota">—</div></div>
