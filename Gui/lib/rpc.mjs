@@ -49,9 +49,10 @@ export async function enumerateAll(cdp, tokens, { albumId = null, mode = 1, onPa
   do {
     let pageItems, nextToken;
     if (albumId) {
-      const payload = await callRpc(cdp, 'lcxiM', [pageToken, albumId, 500, null, 1, 1], tokens);
-      pageItems = payload?.[0] ?? [];
-      nextToken = payload?.[1] ?? null;
+      // snAcKc [albumId, pageToken, null, null] → payload[1]=items, payload[2]=nextPage
+      const payload = await callRpc(cdp, 'snAcKc', [albumId, pageToken, null, null], tokens);
+      pageItems = payload?.[1] ?? [];
+      nextToken = payload?.[2] ?? null;
     } else {
       const payload = await callRpc(cdp, 'lcxiM', [pageToken, null, 500, null, mode, 1], tokens);
       pageItems = payload?.[0] ?? [];

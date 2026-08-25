@@ -67,18 +67,12 @@ function buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKe
   return newEntries;
 }
 
-async function saveAlbumMemberships(cdp, tokens, manifest, albumIds, albumTitleMap) {
+async function saveAlbumMemberships(cdp, manifest, albumIds) {
   const targetSet = new Set(manifest.filter(i => i.consumesQuota).map(i => i.mediaKey));
   if (targetSet.size === 0) return;
 
-  let allAlbums = [];
-  if (!albumIds?.length) {
-    allAlbums = await listAllAlbums(cdp, tokens);
-    albumTitleMap = new Map(allAlbums.map(a => [a.albumId, a.title]));
-  } else {
-    allAlbums = [...albumTitleMap.entries()].map(([albumId, title]) => ({ albumId, title }));
-  }
-
+  const tokens = await getTokens(cdp);
+  const allAlbums = await listAllAlbums(cdp, tokens);
   const albumsToCheck = albumIds?.length
     ? allAlbums.filter(a => !albumIds.includes(a.albumId))
     : allAlbums;
@@ -130,7 +124,7 @@ export async function scanStep({ albumIds } = {}) {
     writeManifest(manifest);
     log(`Added ${newEntries.length} new quota items. Total quota: ${manifest.filter(i => i.consumesQuota).length}`, 'success');
 
-    await saveAlbumMemberships(cdp, tokens, manifest, albumIds, albumTitleMap);
+    await saveAlbumMemberships(cdp, manifest, albumIds);
 
     const summary = `Done. ${manifest.filter(i => i.consumesQuota).length} quota items ready.`;
     log(summary, 'success');
@@ -202,7 +196,7 @@ export async function scanFullStep({ albumIds } = {}) {
     log(`Scan: ${newEntries.length} new quota items. Total: ${manifest.filter(i => i.consumesQuota).length}`, 'success');
 
     await enrichDedupKeys(cdp, tokens, manifest);
-    await saveAlbumMemberships(cdp, tokens, manifest, albumIds, albumTitleMap);
+    await saveAlbumMemberships(cdp, manifest, albumIds);
 
     const totalQuota = manifest.filter(i => i.consumesQuota).length;
     const summary = `Done. ${totalQuota} quota items ready for processing.`;
