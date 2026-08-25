@@ -242,7 +242,7 @@ button.small { padding: 4px 12px; font-size: 12px; }
           <div class="step-num" id="snum-2">2</div>
           <div class="step-info">
             <div class="step-name" id="step2-name">Scan &amp; Prepare</div>
-            <div class="step-desc" id="step2-desc">Find quota items · get dedupKeys · save album memberships</div>
+            <div class="step-desc" id="step2-desc">Find quota items · get dedupKeys · save album memberships · detect archived photos</div>
             <div class="step-stat pending" id="sstat-2">Select albums first</div>
             <label class="step-extra">
               <input type="checkbox" id="chk-scan-all" onchange="onScanAllChange()">
@@ -303,8 +303,8 @@ button.small { padding: 4px 12px; font-size: 12px; }
         <div class="step">
           <div class="step-num" id="snum-6">6</div>
           <div class="step-info">
-            <div class="step-name" id="step6-name">Restore Albums</div>
-            <div class="step-desc" id="step6-desc">Put photos back into their original albums</div>
+            <div class="step-name" id="step6-name">Restore Albums &amp; Archives</div>
+            <div class="step-desc" id="step6-desc">Put photos back into their original albums · re-archive photos that were archived</div>
             <div class="step-stat pending" id="sstat-6">Verify first</div>
           </div>
           <button class="small step-btn" id="btn-restore-albums" onclick="runOp('restore-albums')" disabled>Restore</button>
@@ -426,7 +426,7 @@ const LANGS = {
     step1ScanAll: 'Full library scan',
 
     step2Name: 'Scan & Prepare',
-    step2Desc: 'Find quota items · get dedupKeys · save album memberships',
+    step2Desc: 'Find quota items · get dedupKeys · save album memberships · detect archived photos',
     step2Pending1: 'Select albums or enable "Scan all library"',
     step2Pending2: 'Ready to scan',
     step2Done: (n) => `${n} quota item${n > 1 ? 's' : ''} found`,
@@ -469,8 +469,8 @@ const LANGS = {
     step5Done: (n, total) => `${n}/${total} verified`,
     btnVerify: 'Verify',
 
-    step6Name: 'Restore Albums',
-    step6Desc: 'Put photos back into their original albums',
+    step6Name: 'Restore Albums & Archives',
+    step6Desc: 'Put photos back into their original albums · re-archive photos that were archived',
     step6Pending1: 'Verify first',
     step6Pending2: (n) => `${n} items ready`,
     step6Done: (n) => `${n} items restored`,
@@ -594,7 +594,7 @@ When you click Load, the app asks Chrome to fetch your album list using the same
     step1ScanAll: 'Сканирование всей библиотеки',
 
     step2Name: 'Сканировать',
-    step2Desc: 'Найти квотные элементы · получить dedupKey · сохранить альбомы',
+    step2Desc: 'Найти квотные элементы · получить dedupKey · сохранить альбомы · определить архивные фото',
     step2Pending1: 'Выбери альбомы или включи «Сканировать всю библиотеку»',
     step2Pending2: 'Готово к сканированию',
     step2Done: (n) => `Найдено квотных: ${n}`,
@@ -637,8 +637,8 @@ When you click Load, the app asks Chrome to fetch your album list using the same
     step5Done: (n, total) => `Проверено: ${n}/${total}`,
     btnVerify: 'Проверить',
 
-    step6Name: 'Восстановить альбомы',
-    step6Desc: 'Вернуть фото в исходные альбомы',
+    step6Name: 'Восстановить альбомы и архив',
+    step6Desc: 'Вернуть фото в исходные альбомы · заархивировать фото, которые были в архиве',
     step6Pending1: 'Сначала проверь',
     step6Pending2: (n) => `Готово: ${n} элементов`,
     step6Done: (n) => `Восстановлено: ${n}`,
