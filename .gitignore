@@ -1,6 +1,9 @@
 node_modules/
 .browser-profile/
 downloads/
+Gui/package-lock.json
+Gui/dist
+Gui/Google Photos Recovery.zip
 manifest.json
 manifest.backup.json
 progress.json
