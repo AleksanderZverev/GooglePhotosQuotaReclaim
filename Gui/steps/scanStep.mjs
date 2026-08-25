@@ -4,13 +4,16 @@ import { readManifest, writeManifest } from '../lib/manifest.mjs';
 import { log, opStart, opEnd } from '../lib/sse.mjs';
 
 async function enumerateLibrary(cdp, tokens) {
-  const libraryItems = [];
+  const items = [];
   await enumerateAll(cdp, tokens, {
     onPage: (p, total) => log(`Page ${p}: ${total} items`),
-  }).then(r => libraryItems.push(...r));
+  }).then(r => items.push(...r));
 
-  log('Scanning archive (mode 2)...');
-  const archiveItems = await enumerateAll(cdp, tokens, { mode: 2 });
+  log('Scanning archive...');
+  const archiveItems = await enumerateAll(cdp, tokens, {
+    archive: true,
+    onPage: (p, total) => log(`Archive page ${p}: ${total} items`),
+  });
   log(`Archive: ${archiveItems.length} items`);
 
   const archivedKeys = new Set();
@@ -19,7 +22,7 @@ async function enumerateLibrary(cdp, tokens) {
     if (i?.[3]) archivedKeys.add(i[3]);
   }
 
-  return { rawItems: [...libraryItems, ...archiveItems], albumToKeys: new Map(), albumTitleMap: new Map(), archivedKeys };
+  return { rawItems: [...items, ...archiveItems], albumToKeys: new Map(), albumTitleMap: new Map(), archivedKeys };
 }
 
 async function enumerateSelectedAlbums(cdp, tokens, albumIds) {

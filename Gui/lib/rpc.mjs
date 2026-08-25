@@ -42,10 +42,15 @@ export async function callRpc(cdp, rpcId, data, tokens, { allowEmpty = false, re
   return JSON.parse(parsed[0][2]);
 }
 
-export async function enumerateAll(cdp, tokens, { albumId = null, mode = 1, onPage } = {}) {
+export async function enumerateAll(cdp, tokens, { albumId = null, mode = 1, archive = false, onPage } = {}) {
   const items = [];
   let pageToken = null;
   let page = 0;
+  let archivePath = null;
+  if (archive) {
+    const m = tokens.path.match(/^(\/u\/\d+)/);
+    archivePath = (m ? m[1] : '') + '/archive';
+  }
   do {
     let pageItems, nextToken;
     if (albumId) {
@@ -53,6 +58,11 @@ export async function enumerateAll(cdp, tokens, { albumId = null, mode = 1, onPa
       const payload = await callRpc(cdp, 'snAcKc', [albumId, pageToken, null, null], tokens);
       pageItems = payload?.[1] ?? [];
       nextToken = payload?.[2] ?? null;
+    } else if (archive) {
+      // archive uses source-path=/u/N/archive and payload position[5]=2
+      const payload = await callRpc(cdp, 'lcxiM', [pageToken, null, 500, null, 1, 2], tokens, { sourcePath: archivePath });
+      pageItems = payload?.[0] ?? [];
+      nextToken = payload?.[1] ?? null;
     } else {
       const payload = await callRpc(cdp, 'lcxiM', [pageToken, null, 500, null, mode, 1], tokens);
       pageItems = payload?.[0] ?? [];
