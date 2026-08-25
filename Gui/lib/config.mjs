@@ -8,6 +8,7 @@ export const PORT = process.env.PORT || 8080;
 export const CDP_URL = 'http://127.0.0.1:9222';
 
 export const CHROME_PROFILE_DIR = process.env.CHROME_PROFILE_DIR || path.join(os.tmpdir(), 'Chrome-GPhotos-CDP');
+export const CHROME_GUI_PROFILE_DIR = process.env.CHROME_GUI_PROFILE_DIR || path.join(os.tmpdir(), 'Chrome-GPhotos-GUI');
 export const CHROME_PATHS = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',

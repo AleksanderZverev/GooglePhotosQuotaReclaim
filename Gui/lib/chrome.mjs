@@ -1,6 +1,6 @@
 import fs from 'fs';
-import { spawn } from 'child_process';
-import { CHROME_PATHS, CHROME_PROFILE_DIR } from './config.mjs';
+import { execSync, spawn } from 'child_process';
+import { CHROME_PATHS, CHROME_PROFILE_DIR, CHROME_GUI_PROFILE_DIR } from './config.mjs';
 import { log } from './sse.mjs';
 
 export function findChrome() {
@@ -20,6 +20,22 @@ export function launchChrome() {
   ], { detached: true, stdio: 'ignore' }).unref();
   log(`Chrome launched with profile: ${CHROME_PROFILE_DIR}`, 'info');
   return { ok: true, profileDir: CHROME_PROFILE_DIR };
+}
+
+export function openAppWindow(url) {
+  try {
+    const chromePath = findChrome();
+    spawn(chromePath, [
+      `--app=${url}`,
+      `--user-data-dir=${CHROME_GUI_PROFILE_DIR}`,
+    ], { detached: true, stdio: 'ignore' }).unref();
+  } catch {
+    try {
+      if (process.platform === 'win32') execSync(`start ${url}`);
+      else if (process.platform === 'darwin') execSync(`open ${url}`);
+      else execSync(`xdg-open ${url}`);
+    } catch {}
+  }
 }
 
 export function deleteProfile() {

@@ -2,6 +2,7 @@
 import http from 'http';
 import { handle, json } from './api/router.mjs';
 import { PORT, WORK_DIR, DOWNLOADS_DIR } from './lib/config.mjs';
+import { openAppWindow } from './lib/chrome.mjs';
 
 const server = http.createServer((req, res) => {
   handle(req, res).catch(err => {
@@ -11,8 +12,10 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
+  const url = `http://localhost:${PORT}`;
   console.log(`\nGoogle Photos Recovery GUI`);
-  console.log(`  http://localhost:${PORT}`);
+  console.log(`  ${url}`);
   console.log(`  Work dir: ${WORK_DIR}`);
   console.log(`  Downloads: ${DOWNLOADS_DIR}\n`);
+  openAppWindow(url);
 });
