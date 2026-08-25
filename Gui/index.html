@@ -279,8 +279,15 @@ button.small { padding: 4px 12px; font-size: 12px; }
               <input type="checkbox" id="chk-empty-trash">
               <span id="chk-empty-trash-label">Permanently delete from trash after trashing (prevents auto-trash on re-upload)</span>
             </label>
+            <label class="step-extra">
+              <span id="lbl-concurrency">Parallel streams:</span>
+              <input type="number" id="inp-concurrency" min="1" max="10" value="3" style="width:48px;margin-left:6px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:inherit;font-size:12px">
+            </label>
           </div>
-          <button class="small danger step-btn" id="btn-trash-reupload" onclick="runTrashReupload()" disabled>Trash &amp; Push</button>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
+            <button class="small danger step-btn" id="btn-trash-reupload" onclick="runTrashReupload()" disabled>Trash &amp; Push</button>
+            <button class="small step-btn" id="btn-stop-trash" onclick="stopTrashReupload()" style="display:none;background:var(--surface2);color:var(--error);border-color:var(--error)">Stop</button>
+          </div>
         </div>
 
         <div class="step">
@@ -1055,6 +1062,13 @@ function updateButtonStates() {
   setBtn('btn-restore-albums', (s.verified ?? 0) > 0);
   setBtn('btn-cleanup-pixel', (s.trashed ?? 0) > 0);
 
+  const stopBtn = document.getElementById('btn-stop-trash');
+  if (stopBtn) {
+    stopBtn.style.display = currentOp === 'trash-reupload' ? 'inline-block' : 'none';
+    stopBtn.disabled = false;
+    stopBtn.textContent = 'Stop';
+  }
+
   if (!busy) {
     setStepReady(1, sel.length > 0 || scanAll);
     setStepReady(2, sel.length > 0 || scanAll);
@@ -1170,6 +1184,7 @@ function onScanAllChange() {
 async function runTrashReupload() {
   if (currentOp) return;
   const emptyTrash = document.getElementById('chk-empty-trash').checked;
+  const concurrency = parseInt(document.getElementById('inp-concurrency').value, 10) || 3;
   const emptyTrashWarning = emptyTrash ? t('modalTrashEmptyWarning') : '';
   showModal({
     title: t('modalTrashTitle'),
@@ -1178,11 +1193,17 @@ async function runTrashReupload() {
       { text: t('modalTrashCancel'), cls: '', action: () => {} },
       { text: t('modalTrashConfirm'), cls: 'primary danger', action: async () => {
         awaitingPixelRestore = true;
-        const r = await post('/api/trash-reupload', { emptyTrash });
+        const r = await post('/api/trash-reupload', { emptyTrash, concurrency });
         if (r.error) appendLog(`Error: ${r.error}`, 'error');
       }},
     ],
   });
+}
+
+async function stopTrashReupload() {
+  const btn = document.getElementById('btn-stop-trash');
+  if (btn) { btn.disabled = true; btn.textContent = 'Stopping…'; }
+  await post('/api/stop');
 }
 
 async function matchAlbums() {

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { getCdpTabs, connectCdp, tryGetAccountEmail } from '../lib/cdp.mjs';
 import { getTokens, listAllAlbums } from '../lib/rpc.mjs';
 import { readManifest, manifestStats, writeManifest } from '../lib/manifest.mjs';
-import { broadcast, log, currentOp, sseClients } from '../lib/sse.mjs';
+import { broadcast, log, currentOp, sseClients, requestStop } from '../lib/sse.mjs';
 import { launchChrome, deleteProfile } from '../lib/chrome.mjs';
 import { checkAdb } from '../lib/adb.mjs';
 import { CHROME_PROFILE_DIR, DOWNLOADS_DIR, MANIFEST_FILE, PORT, ADB_PATH, WORK_DIR } from '../lib/config.mjs';
@@ -167,6 +167,11 @@ export async function handle(req, res) {
     catch (err) { return json(res, { error: err.message }, 500); }
   }
   if (pathname === '/api/chrome-info' && req.method === 'GET') return handleChromeInfoRequest(res);
+  if (pathname === '/api/stop' && req.method === 'POST') {
+    requestStop();
+    log('Stop requested by user.', 'warn');
+    return json(res, { ok: true });
+  }
 
   if (req.method !== 'POST') { res.writeHead(404); return res.end('Not found'); }
 

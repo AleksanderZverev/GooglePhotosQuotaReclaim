@@ -3,8 +3,8 @@ import path from 'path';
 import { connectCdp } from '../lib/cdp.mjs';
 import { getTokens, enumerateAll, listAllAlbums } from '../lib/rpc.mjs';
 import { readManifest, writeManifest } from '../lib/manifest.mjs';
-import { adb, checkAdb, safeName } from '../lib/adb.mjs';
-import { log, opStart, opEnd } from '../lib/sse.mjs';
+import { adb, adbAsync, checkAdb, safeName } from '../lib/adb.mjs';
+import { log, opStart, opEnd, isStopRequested } from '../lib/sse.mjs';
 
 async function saveAlbumMembershipsForItems(cdp, tokens, manifest, itemsNeedingAlbums) {
   log(`Saving album memberships for ${itemsNeedingAlbums.length} items...`);
@@ -64,56 +64,18 @@ async function permanentDeleteFromTrash(cdp, tokens, dedupKey) {
   if (r.status !== 200 || r.hasError) throw new Error(`XwAOJf/trash status=${r.status} hasError=${r.hasError}`);
 }
 
-function pushPhotoToPixel(item) {
+async function pushPhotoToPixel(item) {
   const rawName = path.basename(item.downloadedAs);
   const pushName = safeName(rawName);
   const remote = `/sdcard/DCIM/Camera/${pushName}`;
-  adb(`push "${item.downloadedAs}" "${remote}"`);
+  await adbAsync(`push "${item.downloadedAs}" "${remote}"`);
   item.pushedAs = pushName;
   try {
-    adb(`shell content insert --uri content://media/external/images/media --bind "_data:s:${remote}" --bind "mime_type:s:image/jpeg" --bind "_display_name:s:${pushName}"`);
+    await adbAsync(`shell content insert --uri content://media/external/images/media --bind "_data:s:${remote}" --bind "mime_type:s:image/jpeg" --bind "_display_name:s:${pushName}"`);
   } catch {}
 }
 
-function restartPixelPhotosApp() {
-  adb('shell am force-stop com.google.android.apps.photos');
-  adb('shell am start -a android.intent.action.MAIN -n com.google.android.apps.photos/.home.HomeActivity');
-}
-
-async function processItemBatch(cdp, tokens, batch, items, emptyTrash) {
-  let done = 0, errors = 0;
-  for (const item of batch) {
-    const label = item.filename || item.mediaKey.slice(0, 16);
-    try {
-      log(`[${done + errors + 1}/${items.length}] Trashing ${label}...`);
-      await trashPhoto(cdp, tokens, item.dedupKey);
-      item.trashedAt = new Date().toISOString();
-
-      if (emptyTrash) {
-        try {
-          await permanentDeleteFromTrash(cdp, tokens, item.dedupKey);
-          log(`  Permanently deleted from trash: ${label}`);
-        } catch (e) {
-          log(`  Could not permanently delete from trash: ${e.message}`, 'warn');
-        }
-      }
-
-      pushPhotoToPixel(item);
-      item.reuploadComplete = true;
-      item.reuploadedAt = new Date().toISOString();
-      done++;
-      log(`  OK ${label}`);
-    } catch (err) {
-      log(`  FAIL ${label}: ${err.message}`, 'error');
-      item.trashError = err.message;
-      errors++;
-    }
-    await new Promise(r => setTimeout(r, 300));
-  }
-  return { done, errors };
-}
-
-export async function trashReuploadStep({ mediaKeys: filterKeys, saveAlbumsFirst = true, emptyTrash = false } = {}) {
+export async function trashReuploadStep({ mediaKeys: filterKeys, saveAlbumsFirst = true, emptyTrash = false, concurrency = 3 } = {}) {
   opStart('trash-reupload');
   if (!checkAdb()) {
     const msg = 'No ADB device connected';
@@ -141,7 +103,8 @@ export async function trashReuploadStep({ mediaKeys: filterKeys, saveAlbumsFirst
       opEnd('trash-reupload', true, msg);
       return { ok: true, done: 0 };
     }
-    log(`${items.length} items to process.`);
+    const poolSize = Math.max(1, Math.min(concurrency, 10));
+    log(`${items.length} items to process (concurrency: ${poolSize}).`);
 
     if (saveAlbumsFirst) {
       const itemsNeedingAlbums = items.filter(i => !i.albums);
@@ -152,27 +115,70 @@ export async function trashReuploadStep({ mediaKeys: filterKeys, saveAlbumsFirst
     }
 
     const tokens = await getTokens(cdp);
-    const BATCH = 10;
-    let totalDone = 0, totalErrors = 0;
+    let counter = 0;
+    let completedCount = 0;
+    let totalDone = 0;
+    let totalErrors = 0;
+    let wasStopped = false;
+    const iter = items[Symbol.iterator]();
 
-    for (let i = 0; i < items.length; i += BATCH) {
-      const batch = items.slice(i, i + BATCH);
-      const { done, errors } = await processItemBatch(cdp, tokens, batch, items, emptyTrash);
-      totalDone += done;
-      totalErrors += errors;
-      writeManifest(manifest);
-      log(`Batch done. Progress: ${totalDone + totalErrors}/${items.length}`);
+    async function worker() {
+      for (;;) {
+        if (isStopRequested()) { wasStopped = true; break; }
+        const { value: item, done } = iter.next();
+        if (done) break;
+
+        const n = ++counter;
+        const label = item.filename || item.mediaKey.slice(0, 16);
+        try {
+          log(`[${n}/${items.length}] Trashing ${label}...`);
+          await trashPhoto(cdp, tokens, item.dedupKey);
+          item.trashedAt = new Date().toISOString();
+
+          if (emptyTrash) {
+            try {
+              await permanentDeleteFromTrash(cdp, tokens, item.dedupKey);
+              log(`  Permanently deleted from trash: ${label}`);
+            } catch (e) {
+              log(`  Could not permanently delete: ${e.message}`, 'warn');
+            }
+          }
+
+          await pushPhotoToPixel(item);
+          item.reuploadComplete = true;
+          item.reuploadedAt = new Date().toISOString();
+          totalDone++;
+          log(`  ✓ ${label}`);
+        } catch (err) {
+          log(`  ✗ ${label}: ${err.message}`, 'error');
+          item.trashError = err.message;
+          totalErrors++;
+        }
+
+        completedCount++;
+        if (completedCount % 10 === 0) writeManifest(manifest);
+      }
+    }
+
+    await Promise.all(Array.from({ length: poolSize }, worker));
+    writeManifest(manifest);
+
+    if (wasStopped) {
+      log(`Stopped. Processed: ${completedCount}/${items.length}, pushed: ${totalDone}, errors: ${totalErrors}.`, 'warn');
     }
 
     try {
-      restartPixelPhotosApp();
+      adb('shell am force-stop com.google.android.apps.photos');
+      adb('shell am start -a android.intent.action.MAIN -n com.google.android.apps.photos/.home.HomeActivity');
       log('Photos app restarted.', 'success');
     } catch (err) { log(`Could not restart Photos: ${err.message}`, 'warn'); }
 
-    const summary = `Done: ${totalDone} processed, ${totalErrors} errors.`;
-    log(summary, totalErrors > 0 ? 'warn' : 'success');
-    opEnd('trash-reupload', totalErrors === 0, summary);
-    return { ok: true, done: totalDone, errors: totalErrors };
+    const summary = wasStopped
+      ? `Stopped. ${totalDone} pushed, ${totalErrors} errors, ${items.length - completedCount} skipped.`
+      : `Done: ${totalDone} processed, ${totalErrors} errors.`;
+    log(summary, wasStopped || totalErrors > 0 ? 'warn' : 'success');
+    opEnd('trash-reupload', !wasStopped && totalErrors === 0, summary);
+    return { ok: true, done: totalDone, errors: totalErrors, stopped: wasStopped };
   } catch (err) {
     log(`Trash+Reupload failed: ${err.message}`, 'error');
     opEnd('trash-reupload', false, err.message);

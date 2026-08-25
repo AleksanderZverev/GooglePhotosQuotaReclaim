@@ -3,6 +3,10 @@ import { readManifest } from './manifest.mjs';
 
 export const sseClients = new Set();
 export let currentOp = null;
+let stopRequested = false;
+
+export function requestStop() { stopRequested = true; }
+export function isStopRequested() { return stopRequested; }
 
 export function broadcast(type, payload) {
   const msg = `data: ${JSON.stringify({ type, ...payload })}\n\n`;
@@ -19,6 +23,7 @@ export function log(msg, level = 'info') {
 
 export function opStart(name) {
   currentOp = name;
+  stopRequested = false;
   broadcast('opStart', { name });
 }
 
