@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { INDEX_HTML } from '../lib/indexHtml.mjs';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { getCdpTabs, connectCdp, tryGetAccountEmail } from '../lib/cdp.mjs';
@@ -16,7 +17,6 @@ import { trashReuploadStep } from '../steps/trashReuploadStep.mjs';
 import { verifyStep } from '../steps/verifyStep.mjs';
 import { cleanupPixelStep, matchManifestStep, matchAlbumsStep, switchAccountStep } from '../steps/miscSteps.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const emailCacheMap = new Map();
 
 export function json(res, data, status = 200) {
@@ -42,7 +42,7 @@ function handleCors(res) {
 
 function serveIndexHtml(res) {
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-  fs.createReadStream(path.join(__dirname, '..', 'index.html')).pipe(res);
+  res.end(INDEX_HTML);
 }
 
 function handleSseConnection(req, res) {

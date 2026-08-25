@@ -3,9 +3,14 @@
   "type": "module",
   "version": "1.0.0",
   "scripts": {
-    "start": "node server.mjs"
+    "start": "node server.mjs",
+    "build": "node build.mjs"
   },
   "dependencies": {
     "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^5.12.0",
+    "esbuild": "^0.24.0"
   }
 }

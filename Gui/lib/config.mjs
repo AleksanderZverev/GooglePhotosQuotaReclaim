@@ -14,7 +14,10 @@ export const CHROME_PATHS = [
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
 ];
 
-export const WORK_DIR = process.env.WORK_DIR || path.dirname(path.dirname(__dirname));
+// When running as a pkg executable, work dir is next to the .exe; otherwise project root
+export const WORK_DIR = process.env.WORK_DIR || (
+  process.pkg ? path.dirname(process.execPath) : path.dirname(path.dirname(__dirname))
+);
 export const MANIFEST_FILE = path.join(WORK_DIR, 'manifest.json');
 export const DOWNLOADS_DIR = path.join(WORK_DIR, 'downloads');
 
