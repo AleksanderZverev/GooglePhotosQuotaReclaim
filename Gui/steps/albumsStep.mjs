@@ -1,52 +1,9 @@
 import { connectCdp } from '../lib/cdp.mjs';
-import { getTokens, enumerateAll, listAllAlbums } from '../lib/rpc.mjs';
+import { getTokens } from '../lib/rpc.mjs';
 import { readManifest, writeManifest } from '../lib/manifest.mjs';
 import { log, opStart, opEnd } from '../lib/sse.mjs';
 
-async function matchAlbumItemsToManifest(cdp, tokens, albums, targetKeys, keyToItem) {
-  for (let i = 0; i < albums.length; i++) {
-    const { albumId, title } = albums[i];
-    const albumItems = await enumerateAll(cdp, tokens, { albumId });
-    let matched = 0;
-    for (const rawItem of albumItems) {
-      const key = rawItem?.[0];
-      if (!key || !targetKeys.has(key)) continue;
-      const item = keyToItem.get(key);
-      if (!item) continue;
-      if (!item.albums) item.albums = [];
-      if (!item.albums.find(a => a.albumId === albumId)) {
-        item.albums.push({ albumId, albumTitle: title });
-        matched++;
-      }
-    }
-    log(`[${i + 1}/${albums.length}] "${title}": ${albumItems.length} items, ${matched} matched`);
-  }
-}
 
-export async function saveAlbumsStep() {
-  opStart('save-albums');
-  const cdp = await connectCdp();
-  try {
-    const tokens = await getTokens(cdp);
-    log('Listing albums...');
-    const albums = await listAllAlbums(cdp, tokens);
-    log(`Found ${albums.length} albums.`);
-    const manifest = readManifest();
-    const targetKeys = new Set(manifest.filter(i => i.consumesQuota || i.downloaded).map(i => i.mediaKey));
-    const keyToItem = new Map(manifest.map(i => [i.mediaKey, i]));
-    await matchAlbumItemsToManifest(cdp, tokens, albums, targetKeys, keyToItem);
-    writeManifest(manifest);
-    const withAlbums = manifest.filter(i => i.albums?.length > 0).length;
-    const summary = `Done. ${withAlbums} items have album data.`;
-    log(summary, 'success');
-    opEnd('save-albums', true, summary);
-    return { ok: true };
-  } catch (err) {
-    log(`Save albums failed: ${err.message}`, 'error');
-    opEnd('save-albums', false, err.message);
-    return { ok: false, error: err.message };
-  } finally { cdp.close(); }
-}
 
 async function restoreItemsIntoAlbum(cdp, tokens, albumId, albumItems) {
   const BATCH = 50;

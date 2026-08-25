@@ -11,7 +11,7 @@ import { checkAdb } from '../lib/adb.mjs';
 import { CHROME_PROFILE_DIR, DOWNLOADS_DIR, MANIFEST_FILE, PORT, ADB_PATH, WORK_DIR } from '../lib/config.mjs';
 import { scanStep, scanFullStep } from '../steps/scanStep.mjs';
 import { enrichStep } from '../steps/enrichStep.mjs';
-import { saveAlbumsStep, restoreAlbumsStep } from '../steps/albumsStep.mjs';
+import { restoreAlbumsStep } from '../steps/albumsStep.mjs';
 import { trashReuploadStep } from '../steps/trashReuploadStep.mjs';
 import { verifyStep } from '../steps/verifyStep.mjs';
 import { cleanupPixelStep, matchManifestStep, matchAlbumsStep, switchAccountStep } from '../steps/miscSteps.mjs';
@@ -130,7 +130,6 @@ function buildOperationsMap(body) {
     '/api/scan-full':      () => scanFullStep(body),
     '/api/scan':           () => scanStep(body),
     '/api/enrich':         () => enrichStep(),
-    '/api/save-albums':    () => saveAlbumsStep(),
     '/api/trash-reupload': () => trashReuploadStep(body),
     '/api/verify':         () => verifyStep(),
     '/api/restore-albums': () => restoreAlbumsStep(),
