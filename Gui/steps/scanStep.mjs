@@ -68,7 +68,7 @@ function buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKe
 }
 
 async function saveAlbumMemberships(cdp, manifest, albumIds) {
-  const targetSet = new Set(manifest.filter(i => i.consumesQuota).map(i => i.mediaKey));
+  const targetSet = new Set(manifest.filter(i => i.consumesQuota).map(i => i.dedupKey));
   if (targetSet.size === 0) return;
 
   const tokens = await getTokens(cdp);
@@ -80,12 +80,12 @@ async function saveAlbumMemberships(cdp, manifest, albumIds) {
   if (albumsToCheck.length === 0) return;
 
   log(`Checking ${albumsToCheck.length} album${albumsToCheck.length !== 1 ? 's' : ''} for memberships...`);
-  const keyToItem = new Map(manifest.map(i => [i.mediaKey, i]));
+  const keyToItem = new Map(manifest.map(i => [i.dedupKey, i]));
   let found = 0;
   for (const { albumId, title } of albumsToCheck) {
     const albumItems = await enumerateAll(cdp, tokens, { albumId });
     for (const rawItem of albumItems) {
-      const key = rawItem?.[0];
+      const key = rawItem?.[3];
       if (!key || !targetSet.has(key)) continue;
       const item = keyToItem.get(key);
       if (!item) continue;
