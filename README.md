@@ -1,5 +1,7 @@
 # Google Photos Quota Reclaim
 
+[🇷🇺 Читать на русском](README.ru.md)
+
 Reclaim Google Photos storage quota. Finds quota-consuming photos, downloads them, deletes from the cloud, and re-uploads via a **Pixel 1**'s grandfathered unlimited original-quality backup — so they cost zero quota.
 
 ## Features
