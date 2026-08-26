@@ -53,6 +53,13 @@ if (Test-Path $adbSrc) {
 # Create downloads\ next to the bat (WORK_DIR = dist\)
 $downloadsDir = Join-Path $distDir 'downloads'
 New-Item -ItemType Directory $downloadsDir | Out-Null
+@'
+Place your photos and videos here before starting the recovery process.
+Delete this README.md file before use — the app scans this folder for media files.
+
+Поместите фото и видео в эту папку перед запуском процесса восстановления.
+Удалите этот файл README.md перед использованием — приложение сканирует папку на медиафайлы.
+'@ | Set-Content (Join-Path $downloadsDir 'README.md') -Encoding UTF8
 Write-Host 'Created downloads\'
 
 # Zip dist\ -> Google Photos Quota Reclaim.zip
