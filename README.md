@@ -15,7 +15,8 @@ Reclaim Google Photos storage quota. Finds quota-consuming photos, downloads the
 
 ## Screenshots
 
-<!-- add screenshots here -->
+![](screenshots/google-photo-recovery-initial.png)
+![](screenshots/google-photo-recovery-completed.png)
 
 ## Requirements
 
