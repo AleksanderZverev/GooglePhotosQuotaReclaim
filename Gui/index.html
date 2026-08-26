@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Google Photos Recovery</title>
+<title>Google Photos Quota Reclaim</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 16 L16 2 A14 14 0 0 1 30 16 Z' fill='%23EA4335'/><path d='M16 16 L30 16 A14 14 0 0 1 16 30 Z' fill='%23FBBC05'/><path d='M16 16 L16 30 A14 14 0 0 1 2 16 Z' fill='%234285F4'/><path d='M16 16 L2 16 A14 14 0 0 1 16 2 Z' fill='%2334A853'/><circle cx='16' cy='16' r='5' fill='white'/></svg>"/>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -176,7 +176,7 @@ button.small { padding: 4px 12px; font-size: 12px; }
 <body>
 
 <header>
-  <h1 id="app-title">Google Photos Recovery</h1>
+  <h1 id="app-title">Google Photos Quota Reclaim</h1>
   <div id="cdpBadge" class="badge bad" title="Click to learn about CDP" onclick="showPopup('cdp')"><div class="dot"></div><span id="cdpLabel">CDP</span></div>
   <div id="adbBadge" class="badge bad" title="Click to learn about ADB" onclick="showPopup('adb')"><div class="dot"></div> ADB</div>
   <div style="display:flex;gap:2px">
@@ -400,10 +400,11 @@ let adbBinaryWarnShown = false;
 
 const LANGS = {
   en: {
-    appTitle: 'Google Photos Recovery',
+    appTitle: 'Google Photos Quota Reclaim',
     launchChrome: 'Launch Chrome',
     deleteProfile: 'Delete Profile',
     reset: 'Reset',
+    resetTooltip: 'Delete manifest.json and reset all step states. Downloaded files will NOT be deleted.',
 
     albums: 'Albums',
     albumsEmpty: 'Albums are loaded from <b>Google Photos in Chrome</b> — not from the Pixel.<br><br>Connect Chrome (green CDP badge) then click Load.',
@@ -571,10 +572,11 @@ When you click Load, the app asks Chrome to fetch your album list using the same
   },
 
   ru: {
-    appTitle: 'Google Photos Recovery',
+    appTitle: 'Google Photos Quota Reclaim',
     launchChrome: 'Запустить Chrome',
     deleteProfile: 'Удалить профиль',
     reset: 'Сброс',
+    resetTooltip: 'Удалить manifest.json и сбросить все шаги. Скачанные файлы удалены не будут.',
 
     albums: 'Альбомы',
     albumsEmpty: 'Альбомы загружаются из <b>Google Photos в Chrome</b> — не с Pixel.<br><br>Подключи Chrome (зелёный CDP) и нажми «Загрузить».',
@@ -777,6 +779,8 @@ function applyLang() {
 
   setText('app-title', t('appTitle'));
   setText('btn-reset', t('reset'));
+  const resetBtn = document.getElementById('btn-reset');
+  if (resetBtn) resetBtn.title = t('resetTooltip');
 
   const launchBtn = document.getElementById('launchChromeBtn');
   if (launchBtn && !launchBtn.dataset.loading) launchBtn.textContent = t('launchChrome');

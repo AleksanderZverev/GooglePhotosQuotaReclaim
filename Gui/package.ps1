@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-  Package Google Photos Recovery GUI for distribution.
-  Output: Google Photos Recovery.zip
+  Package Google Photos Quota Reclaim GUI for distribution.
+  Output: Google Photos Quota Reclaim.zip
          dist\
-           Google Photos Recovery.bat   <- double-click to launch
+           Google Photos Quota Reclaim.bat   <- double-click to launch
            source\                      <- app + node_modules
 #>
 $ErrorActionPreference = 'Stop'
@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $distDir   = Join-Path $scriptDir 'dist'
 $sourceDir = Join-Path $distDir   'source'
-$zipPath   = Join-Path $scriptDir 'Google Photos Recovery.zip'
+$zipPath   = Join-Path $scriptDir 'Google Photos Quota Reclaim.zip'
 
 # Clean dist
 if (Test-Path $distDir) { Remove-Item $distDir -Recurse -Force }
@@ -35,10 +35,10 @@ Write-Host 'Dependencies installed'
 # Create launcher bat (ASCII — no BOM, cmd.exe reads it cleanly)
 @'
 @echo off
-title Google Photos Recovery
+title Google Photos Quota Reclaim
 cd /d "%~dp0source"
 node server.mjs
-'@ | Set-Content (Join-Path $distDir 'Google Photos Recovery.bat') -Encoding ASCII
+'@ | Set-Content (Join-Path $distDir 'Google Photos Quota Reclaim.bat') -Encoding ASCII
 Write-Host 'Created launcher bat'
 
 # Copy adb\ if present (WORK_DIR = dist\, so adb\ must sit next to the bat)
@@ -50,16 +50,16 @@ if (Test-Path $adbSrc) {
   Write-Host 'adb\ not found — skipped (place it next to the .bat after unzip)'
 }
 
-# Zip dist\ -> Google Photos Recovery.zip
+# Zip dist\ -> Google Photos Quota Reclaim.zip
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 Compress-Archive -Path "$distDir\*" -DestinationPath $zipPath
 
 $sizeMb = [math]::Round((Get-Item $zipPath).Length / 1MB, 1)
 Write-Host ""
-Write-Host "Done: Google Photos Recovery.zip ($sizeMb MB)"
+Write-Host "Done: Google Photos Quota Reclaim.zip ($sizeMb MB)"
 Write-Host ""
 Write-Host "Contents:"
-Write-Host "  Google Photos Recovery.bat  -- double-click to start"
+Write-Host "  Google Photos Quota Reclaim.bat  -- double-click to start"
 Write-Host "  source\                     -- app + node_modules"
 Write-Host ""
 Write-Host "Requires Node.js installed on the target machine."

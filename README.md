@@ -1,42 +1,56 @@
-# gphotos-storage-recovery
+# Google Photos Quota Reclaim
 
-Reclaim Google Photos storage quota. Finds quota-consuming photos, downloads them, trashes from cloud, and re-uploads via a Pixel 1's grandfathered unlimited-original-quality backup — so they cost zero quota.
+Reclaim Google Photos storage quota. Finds quota-consuming photos, downloads them, deletes from the cloud, and re-uploads via a **Pixel 1**'s grandfathered unlimited original-quality backup — so they cost zero quota.
 
-## Prerequisites
+## Features
 
-- **Pixel 1** (sailfish) with USB debugging enabled and Google Photos set to Original quality backup
-- **Chrome** installed in the default location
-- **Node.js 18+**
-- **ADB (Android Debug Bridge)** — download [Platform Tools](https://developer.android.com/tools/releases/platform-tools) and place `adb.exe` (Windows) or `adb` (Linux/macOS) in the `adb/` folder
+- **Album preservation** — saves album memberships before deletion and restores them after re-upload
+- **Archive preservation** — detects archived photos and re-archives them automatically after re-upload
+- **Automatic transfer to Pixel** — pushes files directly to the device over USB using ADB, no manual copying required
+- **Incremental & resumable** — every step is idempotent; you can stop and continue at any point without losing progress
+- **Parallel processing** — configurable number of concurrent streams for faster trash and re-upload
+- **Metadata preservation** — optional integration with [GooglePhotosTakeoutHelper Neo](https://github.com/Xentraxx/GooglePhotosTakeoutHelper_Neo) to restore original dates and GPS from Takeout sidecars before re-uploading
+- **Intuitive GUI** — step-by-step interface guides you through the entire process with real-time progress
+- **English and Russian interface** — switch languages with one click
 
-## Install
+## Screenshots
 
-```bash
-git clone https://github.com/nbarari/gphotos-storage-recovery.git
-cd gphotos-storage-recovery
-npm install
-```
+<!-- add screenshots here -->
 
-## Start the GUI
+## Requirements
 
-```bash
-node Gui/server.mjs
-```
+- **Google Chrome** — must be installed (the app launches and controls it automatically)
+- **Node.js 18+** — download from [nodejs.org](https://nodejs.org/) (LTS version recommended)
+- **Pixel 1** with USB debugging enabled and Google Photos set to Original Quality backup
+- Windows 10/11 (macOS and Linux are supported but require a manual ADB setup — see below)
 
-Open **http://localhost:8080** in any browser.
+## Get Started
 
-## Workflow
+1. **Download** the latest release archive and extract it to any folder <!-- add release link here -->
+2. **Launch the app** — run `Google Photos Quota Reclaim.bat`; the app will open in a separate window automatically
+3. **Open Chrome** — click **Launch Chrome** in the top bar, then sign into Google Photos in the browser window that opens
+4. **Connect your Pixel 1** via USB cable — the ADB indicator in the top bar will turn green when the device is detected
+5. **Click Load** in the sidebar, select the albums you want to process, and follow the on-screen steps
 
-1. **Launch Chrome** — click Launch Chrome in the top bar, sign into Google Photos
-2. **Connect Pixel** via USB — ADB badge turns green when detected
-3. **Scan** — select albums in the sidebar, or check **Scan all library** to find all quota-consuming photos
-4. **Match Downloads** — place downloaded photo files in the `downloads/` folder, then click Match
-   - To preserve metadata (dates, GPS), process files with [GooglePhotosTakeoutHelper Neo](https://github.com/Xentraxx/GooglePhotosTakeoutHelper_Neo) before placing them in `downloads/`
-5. **Trash + Reupload** — deletes from cloud and pushes to Pixel *(irreversible)*
-6. **Wait 1–4 h** for Pixel to back up
-7. **Verify** — confirm quota freed
-8. **Restore Albums** — put photos back into original albums
-9. **Cleanup Pixel** — remove pushed files from device
+## ADB Setup
+
+### Windows
+
+ADB is bundled in the release archive — no extra steps needed.
+
+### macOS / Linux
+
+Download [Android Platform Tools](https://developer.android.com/tools/releases/platform-tools) from the official Android site, extract the archive, and copy the `adb` binary into the `adb/` folder next to the app, replacing the placeholder file.
+
+## How it works
+
+1. **Scan & Prepare** — select albums in the sidebar (or enable *Scan all library*) to find all photos that consume quota; the app also detects which ones are archived and saves album memberships
+2. **Match Downloads** — the app downloads originals to the `downloads/` folder; click Match to link the files to the manifest
+3. **Trash + Reupload** — deletes photos from Google Photos cloud and pushes them to the Pixel via USB *(irreversible step)*
+4. **Wait 1–4 h** — Google Photos on the Pixel backs up the files to the cloud at Original Quality, free of charge
+5. **Verify** — confirms that quota was freed for each photo; use the View button to see which ones are still pending
+6. **Restore Albums & Archives** — puts photos back into their original albums and re-archives photos that were archived before
+7. **Cleanup Pixel** — removes the pushed files from the device's camera roll
 
 ## Implementation details
 
@@ -45,3 +59,11 @@ See [docs/implementation.md](docs/implementation.md) for the CLI pipeline, RPC r
 ## License
 
 MIT
+
+---
+
+## Support
+
+If this tool saved you time or storage space, consider buying the author a coffee:
+
+<!-- add Buy Me a Coffee link here -->
