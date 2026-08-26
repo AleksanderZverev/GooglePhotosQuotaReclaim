@@ -163,6 +163,7 @@ button.small { padding: 4px 12px; font-size: 12px; }
 .viewer-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; }
 .viewer-badge.oq { background: rgba(251,191,36,.15); color: var(--warn); }
 .viewer-badge.ss { background: var(--border); color: var(--muted2); }
+.viewer-badge.archived { background: rgba(79,142,247,.12); color: var(--accent); }
 .viewer-size { font-size: 10px; color: var(--muted2); }
 .viewer-footer { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; font-size: 11px; color: var(--muted); }
 </style>
@@ -449,6 +450,7 @@ const LANGS = {
     viewerOriginalQuality: 'Original',
     viewerStorageSaver: 'Storage Saver',
     viewerNoAlbum: 'No album',
+    viewerArchived: 'Archived',
     viewerClose: 'Close',
     viewerCountAll: (n) => `${n} items`,
     viewerCountFiltered: (n, total) => `${n} of ${total}`,
@@ -617,6 +619,7 @@ When you click Load, the app asks Chrome to fetch your album list using the same
     viewerOriginalQuality: 'Оригинал',
     viewerStorageSaver: 'Эконом',
     viewerNoAlbum: 'Без альбома',
+    viewerArchived: 'Архив',
     viewerClose: 'Закрыть',
     viewerCountAll: (n) => `${n} элементов`,
     viewerCountFiltered: (n, total) => `${n} из ${total}`,
@@ -1207,9 +1210,7 @@ async function stopTrashReupload() {
 }
 
 async function matchAlbums() {
-  const ids = getSelectedAlbumIds();
-  const body = ids.length ? { albumIds: ids } : {};
-  const r = await post('/api/match', body);
+  const r = await post('/api/match', {});
   if (r.error) appendLog(`Error: ${r.error}`, 'error');
 }
 
@@ -1320,6 +1321,7 @@ function renderViewerItems(items, query) {
     const fname = item.filename || item.mediaKey.slice(0, 20);
     const isOq = item.isOriginalQuality;
     const badge = `<span class="viewer-badge ${isOq ? 'oq' : 'ss'}">${isOq ? t('viewerOriginalQuality') : t('viewerStorageSaver')}</span>`;
+    const archiveBadge = item.isArchived ? `<span class="viewer-badge archived">${t('viewerArchived')}</span>` : '';
     const sizeMb = item.sizeBytes ? `${(item.sizeBytes / 1048576).toFixed(1)} MB` : '';
     const albums = item.albums?.length
       ? item.albums.map(a => `<span class="viewer-tag">${escHtml(a.albumTitle || a.albumId)}</span>`).join('')
@@ -1329,7 +1331,7 @@ function renderViewerItems(items, query) {
         <div class="viewer-fname" title="${escHtml(fname)}">${escHtml(fname)}</div>
         <div class="viewer-albums">${albums}</div>
       </div>
-      <div class="viewer-meta">${badge}<span class="viewer-size">${sizeMb}</span></div>
+      <div class="viewer-meta">${badge}${archiveBadge}<span class="viewer-size">${sizeMb}</span></div>
     </div>`;
   }).join('');
 

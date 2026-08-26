@@ -22,7 +22,7 @@ async function enumerateLibrary(cdp, tokens) {
     if (i?.[3]) archivedKeys.add(i[3]);
   }
 
-  return { rawItems: [...items, ...archiveItems], albumToKeys: new Map(), albumTitleMap: new Map(), archivedKeys };
+  return { rawItems: [...items, ...archiveItems], albumToKeys: new Map(), albumTitleMap: new Map(), archivedKeys, archiveScanned: true };
 }
 
 async function enumerateSelectedAlbums(cdp, tokens, albumIds) {
@@ -57,7 +57,7 @@ function buildDedupMap(uniqueItems) {
   return new Map(uniqueItems.filter(i => i?.[0] && i?.[3]).map(i => [i[0], i[3]]));
 }
 
-function buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap, archivedKeys = new Set()) {
+function buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap, archivedKeys = new Set(), archiveScanned = false) {
   const newEntries = [];
   for (const qi of quotaInfos) {
     const mediaKey = qi?.[0];
@@ -78,7 +78,7 @@ function buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKe
       sizeBytes: qi?.[5] ?? 0,
       consumesQuota: true,
       isOriginalQuality: qi?.[14] === 2,
-      ...(isArchived ? { isArchived: true } : {}),
+      ...(archiveScanned ? { isArchived } : isArchived ? { isArchived: true } : {}),
       albums: itemAlbums.length > 0 ? itemAlbums : undefined,
     });
     existingKeys.add(key);
@@ -126,7 +126,7 @@ export async function scanStep({ albumIds } = {}) {
     const tokens = await getTokens(cdp);
     log(`Scanning... (account: ${tokens.path})`);
 
-    const { rawItems, albumToKeys, albumTitleMap, archivedKeys = new Set() } = albumIds?.length
+    const { rawItems, albumToKeys, albumTitleMap, archivedKeys = new Set(), archiveScanned = false } = albumIds?.length
       ? await enumerateSelectedAlbums(cdp, tokens, albumIds)
       : await enumerateLibrary(cdp, tokens);
 
@@ -138,7 +138,7 @@ export async function scanStep({ albumIds } = {}) {
 
     const manifest = readManifest();
     const existingKeys = new Set(manifest.map(m => m.dedupKey || m.mediaKey));
-    const newEntries = buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap, archivedKeys);
+    const newEntries = buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap, archivedKeys, archiveScanned);
     manifest.push(...newEntries);
 
     if (archivedKeys.size) {
@@ -206,7 +206,7 @@ export async function scanFullStep({ albumIds } = {}) {
     const tokens = await getTokens(cdp);
     log(`Scanning... (account: ${tokens.path})`);
 
-    const { rawItems, albumToKeys, albumTitleMap, archivedKeys = new Set() } = scanAll
+    const { rawItems, albumToKeys, albumTitleMap, archivedKeys = new Set(), archiveScanned = false } = scanAll
       ? await enumerateLibrary(cdp, tokens)
       : await enumerateSelectedAlbums(cdp, tokens, albumIds);
 
@@ -219,7 +219,7 @@ export async function scanFullStep({ albumIds } = {}) {
 
     const manifest = readManifest();
     const existingKeys = new Set(manifest.map(m => m.dedupKey || m.mediaKey));
-    const newEntries = buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap, archivedKeys);
+    const newEntries = buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap, archivedKeys, archiveScanned);
     manifest.push(...newEntries);
 
     if (archivedKeys.size) {
