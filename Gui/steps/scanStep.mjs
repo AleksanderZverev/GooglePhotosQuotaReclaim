@@ -40,7 +40,20 @@ async function enumerateSelectedAlbums(cdp, tokens, albumIds) {
     rawItems.push(...items);
     albumToKeys.set(albumId, new Set(items.map(i => i?.[3] || i?.[0]).filter(Boolean)));
   }
-  return { rawItems, albumToKeys, albumTitleMap };
+
+  log('Scanning archive...');
+  const archiveItems = await enumerateAll(cdp, tokens, {
+    archive: true,
+    onPage: (p, total) => log(`  Archive page ${p}: ${total} items`),
+  });
+  log(`Archive: ${archiveItems.length} items`);
+  const archivedKeys = new Set();
+  for (const i of archiveItems) {
+    if (i?.[0]) archivedKeys.add(i[0]);
+    if (i?.[3]) archivedKeys.add(i[3]);
+  }
+
+  return { rawItems, albumToKeys, albumTitleMap, archivedKeys, archiveScanned: true };
 }
 
 function deduplicateItems(rawItems) {
