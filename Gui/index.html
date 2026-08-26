@@ -34,9 +34,14 @@ aside { grid-row: 1 / 3; border-right: 1px solid var(--border); display: flex; f
 .sidebar-header span { font-weight: 600; font-size: 13px; }
 #loadAlbumsBtn { font-size: 12px; padding: 4px 10px; margin-left: auto; }
 #albumList { flex: 1; overflow-y: auto; padding: 8px; }
-.album-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; cursor: pointer; }
+.album-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; cursor: pointer; user-select: none; }
 .album-item:hover { background: rgba(255,255,255,.04); }
-.album-item input[type=checkbox] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Custom checkboxes */
+input[type=checkbox].custom-chk { appearance: none; -webkit-appearance: none; width: 15px; height: 15px; flex-shrink: 0; border: 1.5px solid var(--muted); border-radius: 4px; background: transparent; cursor: pointer; position: relative; transition: border-color .15s, background .15s; vertical-align: middle; }
+input[type=checkbox].custom-chk:hover { border-color: var(--accent); }
+input[type=checkbox].custom-chk:checked { background: var(--accent); border-color: var(--accent); }
+input[type=checkbox].custom-chk:checked::after { content: ''; position: absolute; left: 3px; top: 0px; width: 5px; height: 9px; border: 2px solid #fff; border-left: none; border-top: none; transform: rotate(45deg); }
 .album-name { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .album-count { color: var(--muted); font-size: 11px; flex-shrink: 0; }
 .sidebar-footer { padding: 8px 10px; border-top: 1px solid var(--border); display: flex; gap: 6px; align-items: center; }
@@ -56,7 +61,7 @@ aside { grid-row: 1 / 3; border-right: 1px solid var(--border); display: flex; f
 
 /* Step checkbox */
 .step-extra { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 11px; color: var(--muted); cursor: pointer; user-select: none; }
-.step-extra input { accent-color: var(--accent); cursor: pointer; }
+.step-extra input.custom-chk { margin-top: 0; }
 .step-extra:hover { color: var(--text); }
 
 /* Pipeline */
@@ -246,7 +251,7 @@ button.small { padding: 4px 12px; font-size: 12px; }
             <div class="step-desc" id="step2-desc">Find quota items · get dedupKeys · save album memberships · detect archived photos</div>
             <div class="step-stat pending" id="sstat-2">Select albums first</div>
             <label class="step-extra">
-              <input type="checkbox" id="chk-scan-all" onchange="onScanAllChange()">
+              <input type="checkbox" class="custom-chk" id="chk-scan-all" onchange="onScanAllChange()">
               <span id="chk-scan-all-label">Scan all library (ignore album selection)</span>
             </label>
           </div>
@@ -277,7 +282,7 @@ button.small { padding: 4px 12px; font-size: 12px; }
             <div class="step-desc" id="step4-desc">Delete from cloud · push to Pixel · <span style="color:var(--error)">irreversible</span></div>
             <div class="step-stat pending" id="sstat-4">Match downloads first</div>
             <label class="step-extra">
-              <input type="checkbox" id="chk-empty-trash">
+              <input type="checkbox" class="custom-chk" id="chk-empty-trash">
               <span id="chk-empty-trash-label">Permanently delete from trash after trashing (prevents auto-trash on re-upload)</span>
             </label>
             <label class="step-extra">
@@ -992,6 +997,13 @@ function updateStats(s) {
 }
 
 function updateStepDoneFromStats(s) {
+  // Reset all steps to their number first, then re-apply done state
+  [2, 3, 4, 5, 6].forEach(n => {
+    const el = document.getElementById(`snum-${n}`);
+    if (!el || el.classList.contains('running') || el.classList.contains('error')) return;
+    el.className = 'step-num';
+    el.textContent = String(n);
+  });
   const markDone = (n) => {
     const el = document.getElementById(`snum-${n}`);
     if (!el || el.classList.contains('running') || el.classList.contains('error')) return;
@@ -999,7 +1011,7 @@ function updateStepDoneFromStats(s) {
     el.textContent = '✓';
   };
   if ((s.quota ?? 0) > 0) markDone(2);
-  if ((s.downloaded ?? 0) > 0) markDone(3);
+  if ((s.downloaded ?? 0) > 0 && s.downloaded >= s.quota) markDone(3);
   if ((s.trashed ?? 0) > 0) markDone(4);
   if ((s.verified ?? 0) > 0) markDone(5);
   if ((s.restored ?? 0) > 0) markDone(6);
@@ -1058,7 +1070,7 @@ function updateButtonStates() {
 
   setBtn('btn-scan-full', scanAll || sel.length > 0);
   setBtn('btn-view-scanned', (s.quota ?? 0) > 0);
-  setBtn('btn-match', (s.quota ?? 0) > 0 || sel.length > 0);
+  setBtn('btn-match', (s.quota ?? 0) > 0);
   setBtn('btn-view-unmatched', (s.quota ?? 0) > 0);
   setBtn('btn-trash-reupload', (s.downloaded ?? 0) > 0);
   setBtn('btn-verify', (s.trashed ?? 0) > 0);
@@ -1130,11 +1142,11 @@ function renderAlbums() {
     return;
   }
   list.innerHTML = albums.map(a => `
-    <div class="album-item" onclick="toggleAlbum('${a.albumId}')">
-      <input type="checkbox" id="alb-${a.albumId}" value="${a.albumId}" onchange="onAlbumChange()">
+    <label class="album-item" for="alb-${a.albumId}">
+      <input type="checkbox" class="custom-chk" id="alb-${a.albumId}" value="${a.albumId}" onchange="onAlbumChange()">
       <span class="album-name" title="${a.title}">${a.title}</span>
       ${a.count != null ? `<span class="album-count">${a.count}</span>` : ''}
-    </div>`).join('');
+    </label>`).join('');
   onAlbumChange();
 }
 
