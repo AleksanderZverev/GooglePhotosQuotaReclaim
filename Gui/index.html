@@ -303,7 +303,10 @@ button.small { padding: 4px 12px; font-size: 12px; }
             <div class="step-desc" id="step5-desc">Wait 1–4 h for Pixel backup, then confirm quota freed</div>
             <div class="step-stat pending" id="sstat-5">Trash + reupload first</div>
           </div>
-          <button class="small step-btn" id="btn-verify" onclick="runOp('verify')" disabled>Verify</button>
+          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+            <button class="small primary step-btn" id="btn-verify" onclick="runOp('verify')" disabled>Verify</button>
+            <button class="small step-btn" id="btn-view-unverified" onclick="showUnverifiedItems()" disabled>View</button>
+          </div>
         </div>
 
         <div class="step">
@@ -475,6 +478,8 @@ const LANGS = {
     step5Pending2: 'Wait for Pixel backup, then verify',
     step5Done: (n, total) => `${n}/${total} verified`,
     btnVerify: 'Verify',
+    btnViewUnverified: 'View',
+    viewerUnverifiedTitle: 'Not yet verified (awaiting backup)',
 
     step6Name: 'Restore Albums & Archives',
     step6Desc: 'Put photos back into their original albums · re-archive photos that were archived',
@@ -644,6 +649,8 @@ When you click Load, the app asks Chrome to fetch your album list using the same
     step5Pending2: 'Жди бэкап Pixel, потом проверяй',
     step5Done: (n, total) => `Проверено: ${n}/${total}`,
     btnVerify: 'Проверить',
+    btnViewUnverified: 'Смотреть',
+    viewerUnverifiedTitle: 'Не проверены (ожидают бэкап)',
 
     step6Name: 'Восстановить альбомы и архив',
     step6Desc: 'Вернуть фото в исходные альбомы · заархивировать фото, которые были в архиве',
@@ -827,6 +834,7 @@ function applyLang() {
   if (vsearch) vsearch.placeholder = t('viewerSearch');
   setText('btn-trash-reupload', t('btnTrash'));
   setText('btn-verify', t('btnVerify'));
+  setText('btn-view-unverified', t('btnViewUnverified'));
   setText('btn-restore-albums', t('btnRestore'));
   setText('btn-cleanup-pixel', t('btnCleanup'));
 
@@ -1074,6 +1082,7 @@ function updateButtonStates() {
   setBtn('btn-view-unmatched', (s.quota ?? 0) > 0);
   setBtn('btn-trash-reupload', (s.downloaded ?? 0) > 0);
   setBtn('btn-verify', (s.trashed ?? 0) > 0);
+  setBtn('btn-view-unverified', (s.trashed ?? 0) > (s.verified ?? 0));
   setBtn('btn-restore-albums', (s.verified ?? 0) > 0);
   setBtn('btn-cleanup-pixel', (s.trashed ?? 0) > 0);
 
@@ -1309,6 +1318,12 @@ async function showUnmatchedItems() {
   const r = await fetch(`${API}/api/manifest`).then(r => r.json());
   const items = (r.manifest || []).filter(i => i.consumesQuota && !i.downloaded);
   openViewer(t('viewerUnmatchedTitle'), items);
+}
+
+async function showUnverifiedItems() {
+  const r = await fetch(`${API}/api/manifest`).then(r => r.json());
+  const items = (r.manifest || []).filter(i => i.reuploadComplete && !i.verified);
+  openViewer(t('viewerUnverifiedTitle'), items);
 }
 
 function openViewer(title, items) {
