@@ -50,6 +50,11 @@ if (Test-Path $adbSrc) {
   Write-Host 'adb\ not found — skipped (place it next to the .bat after unzip)'
 }
 
+# Create downloads\ next to the bat (WORK_DIR = dist\)
+$downloadsDir = Join-Path $distDir 'downloads'
+New-Item -ItemType Directory $downloadsDir | Out-Null
+Write-Host 'Created downloads\'
+
 # Zip dist\ -> Google Photos Quota Reclaim.zip
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 Compress-Archive -Path "$distDir\*" -DestinationPath $zipPath
