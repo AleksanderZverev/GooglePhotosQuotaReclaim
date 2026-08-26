@@ -67,6 +67,7 @@ MIT
 
 ## Support
 
-If this tool saved you time or storage space, consider buying the author a coffee:
+If this tool saved you time or storage space, consider buying the author a coffee.
 
-<!-- add Buy Me a Coffee link here -->
+[!["Buy Me A Coffee"](https://cdn.buymeacoffee.com/buttons/v2/arial-orange.png)](https://www.buymeacoffee.com/aleksanderzverev)
+
