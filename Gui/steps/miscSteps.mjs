@@ -3,14 +3,18 @@ import path from 'path';
 import { connectCdp } from '../lib/cdp.mjs';
 import { getTokens, enumerateAll, batchQuotaInfo } from '../lib/rpc.mjs';
 import { readManifest, writeManifest } from '../lib/manifest.mjs';
-import { adb, checkAdb } from '../lib/adb.mjs';
+import { adb, checkAdb, getAdbStatus } from '../lib/adb.mjs';
 import { log, opStart, opEnd } from '../lib/sse.mjs';
 import { DOWNLOADS_DIR } from '../lib/config.mjs';
 
 export async function cleanupPixelStep() {
   opStart('cleanup-pixel');
   try {
-    if (!checkAdb()) throw new Error('No ADB device connected');
+    if (!checkAdb()) throw new Error('No ADB device selected. Plug in the Pixel 1 or choose a device.');
+    const adbDev = getAdbStatus().current;
+    if (adbDev) {
+      log(`Using ADB device: ${adbDev.model || adbDev.serial}${adbDev.isPixel1 ? ' (Pixel 1)' : ''} [${adbDev.serial}]`);
+    }
     log('Removing files from /sdcard/DCIM/Camera/...');
     adb('shell rm /sdcard/DCIM/Camera/*');
     const summary = 'Pixel camera roll cleaned.';

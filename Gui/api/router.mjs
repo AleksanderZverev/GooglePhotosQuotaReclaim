@@ -7,7 +7,7 @@ import { getTokens, listAllAlbums } from '../lib/rpc.mjs';
 import { readManifest, manifestStats, writeManifest } from '../lib/manifest.mjs';
 import { broadcast, log, currentOp, sseClients, requestStop } from '../lib/sse.mjs';
 import { launchChrome, deleteProfile } from '../lib/chrome.mjs';
-import { checkAdb } from '../lib/adb.mjs';
+import { checkAdb, getAdbStatus, setSelectedSerial } from '../lib/adb.mjs';
 import { CHROME_PROFILE_DIR, DOWNLOADS_DIR, MANIFEST_FILE, PORT, ADB_PATH, WORK_DIR } from '../lib/config.mjs';
 import { scanStep, scanFullStep } from '../steps/scanStep.mjs';
 import { enrichStep } from '../steps/enrichStep.mjs';
@@ -88,6 +88,7 @@ async function handleStatusRequest(res) {
       currentOp,
       adbBinaryFound: fs.existsSync(ADB_PATH),
       adbConnected: checkAdb(),
+      adb: getAdbStatus(),
       workDir: WORK_DIR,
       downloadsDir: DOWNLOADS_DIR,
       downloadCount: fs.existsSync(DOWNLOADS_DIR) ? fs.readdirSync(DOWNLOADS_DIR).length : 0,
@@ -179,6 +180,19 @@ export async function handle(req, res) {
 
   if (currentOp) {
     return json(res, { error: `Operation '${currentOp}' is running`, busy: true }, 409);
+  }
+
+  if (pathname === '/api/select-adb') {
+    try {
+      const status = setSelectedSerial(body.serial || null);
+      const label = status.current
+        ? `${status.current.model || status.current.serial}${status.current.isPixel1 ? ' (Pixel 1)' : ''} [${status.current.serial}]`
+        : 'none';
+      log(`ADB device: ${label}`, 'info');
+      return json(res, status);
+    } catch (err) {
+      return json(res, { error: err.message }, 400);
+    }
   }
 
   const ops = buildOperationsMap(body);

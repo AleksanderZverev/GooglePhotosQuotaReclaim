@@ -3,7 +3,7 @@ import path from 'path';
 import { connectCdp } from '../lib/cdp.mjs';
 import { getTokens, enumerateAll, listAllAlbums } from '../lib/rpc.mjs';
 import { readManifest, writeManifest } from '../lib/manifest.mjs';
-import { adb, adbAsync, checkAdb, safeName } from '../lib/adb.mjs';
+import { adb, adbAsync, checkAdb, getAdbStatus, safeName } from '../lib/adb.mjs';
 import { log, opStart, opEnd, isStopRequested } from '../lib/sse.mjs';
 
 async function saveAlbumMembershipsForItems(cdp, tokens, manifest, itemsNeedingAlbums) {
@@ -78,10 +78,14 @@ async function pushPhotoToPixel(item) {
 export async function trashReuploadStep({ mediaKeys: filterKeys, saveAlbumsFirst = true, emptyTrash = false, concurrency = 3 } = {}) {
   opStart('trash-reupload');
   if (!checkAdb()) {
-    const msg = 'No ADB device connected';
+    const msg = 'No ADB device selected. Plug in the Pixel 1 or choose a device.';
     log(msg, 'error');
     opEnd('trash-reupload', false, msg);
     return { ok: false, error: msg };
+  }
+  const adbDev = getAdbStatus().current;
+  if (adbDev) {
+    log(`Using ADB device: ${adbDev.model || adbDev.serial}${adbDev.isPixel1 ? ' (Pixel 1)' : ''} [${adbDev.serial}]`);
   }
   const cdp = await connectCdp();
   try {

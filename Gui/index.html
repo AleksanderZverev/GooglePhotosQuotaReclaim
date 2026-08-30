@@ -25,6 +25,7 @@ header h1 { font-size: 16px; font-weight: 600; flex: 1; }
 .badge.bad { background: rgba(248,113,113,.15); color: var(--error); }
 .badge.warn { background: rgba(251,191,36,.15); color: var(--warn); }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.adb-select { max-width: 220px; padding: 3px 6px; font-size: 12px; background: var(--bg); color: inherit; border: 1px solid var(--border); border-radius: 6px; }
 
 /* Layout */
 main { display: grid; grid-template-columns: 260px 1fr; grid-template-rows: 1fr 200px; flex: 1; min-height: 0; }
@@ -179,7 +180,8 @@ button.small { padding: 4px 12px; font-size: 12px; }
 <header>
   <h1 id="app-title">Google Photos Quota Reclaim</h1>
   <div id="cdpBadge" class="badge bad" title="Click to learn about CDP" onclick="showPopup('cdp')"><div class="dot"></div><span id="cdpLabel">CDP</span></div>
-  <div id="adbBadge" class="badge bad" title="Click to learn about ADB" onclick="showPopup('adb')"><div class="dot"></div> ADB</div>
+  <div id="adbBadge" class="badge bad" title="Click to learn about ADB" onclick="showPopup('adb')"><div class="dot"></div><span id="adbLabel">ADB</span></div>
+  <select id="adbDeviceSelect" class="adb-select" onchange="onAdbDeviceChange()" hidden></select>
   <select id="langSelect" class="lang-select" onchange="setLang(this.value)" title="Language">
     <option value="en">English</option>
     <option value="ru">Русский</option>
@@ -401,6 +403,8 @@ let awaitingPixelRestore = false;
 let lang = localStorage.getItem('lang') || 'en';
 let chromeProfileSizeMb = null;
 let adbBinaryWarnShown = false;
+let adbReady = false;
+let adbSerialSynced = false;
 
 const LANGS = {
   en: {
@@ -543,8 +547,14 @@ All library operations (Scan, Enrich, Trash, Verify) require an active CDP conne
     popupAdbBody: `<b>ADB</b> is a tool for communicating with Android devices over USB. This app uses it to push photos to your Pixel 1's camera folder.<br><br>
 Google Photos on the Pixel then backs them up — and Pixel 1 has a permanent exemption that makes all uploads cost <b>zero quota</b>.<br><br>
 <b>Setup:</b> Download <a href="https://developer.android.com/tools/releases/platform-tools" target="_blank" style="color:var(--accent)">Platform Tools</a> and place <code>adb.exe</code> in the <code>adb/</code> folder next to this project.<br><br>
-<b>Green badge:</b> Pixel 1 is connected via USB, USB debugging is authorized in Developer Options, and ADB can see the device.<br><br>
+<b>Green badge:</b> the selected Pixel is connected via USB, USB debugging is authorized, and this app will only talk to that serial.<br><br>
+If several phones are plugged in, use the dropdown next to the badge. Pixel 1 (<code>sailfish</code> / Pixel XL <code>marlin</code>) is auto-selected when it is the only first-gen Pixel.<br><br>
 ADB is only needed for the <b>Trash + Reupload</b> and <b>Cleanup Pixel</b> steps.`,
+    adbPick: 'Select ADB device',
+    adbUnauthorized: 'unauthorized',
+    adbOffline: 'offline',
+    adbPixel1: 'Pixel 1',
+    badgeAdbTitle: 'Click to choose ADB device',
 
     popupChromeTitle: 'Why launch Chrome?',
     popupChromeBody: `All Google Photos API calls go through the browser — not directly from this app. This is because Google's API requires your <b>session cookies</b>, which only exist inside Chrome.<br><br>
@@ -580,7 +590,6 @@ When you click Load, the app asks Chrome to fetch your album list using the same
     viewerNoMatches: 'No matches',
     refreshTitle: 'Refresh status',
     badgeCdpTitle: 'Click to learn about CDP',
-    badgeAdbTitle: 'Click to learn about ADB',
   },
 
   ru: {
@@ -723,8 +732,14 @@ When you click Load, the app asks Chrome to fetch your album list using the same
     popupAdbBody: `<b>ADB</b> — инструмент для общения с Android-устройствами по USB. Приложение использует его для загрузки фото в папку камеры на Pixel 1.<br><br>
 Google Photos на Pixel затем делает бэкап — а у Pixel 1 есть постоянное исключение: все загрузки стоят <b>ноль квоты</b>.<br><br>
 <b>Настройка:</b> Скачай <a href="https://developer.android.com/tools/releases/platform-tools" target="_blank" style="color:var(--accent)">Platform Tools</a> и положи <code>adb.exe</code> в папку <code>adb/</code> рядом с проектом.<br><br>
-<b>Зелёный значок:</b> Pixel 1 подключён по USB, USB-отладка разрешена в настройках разработчика.<br><br>
+<b>Зелёный значок:</b> выбранный Pixel подключён по USB, USB-отладка разрешена; команды идут только на этот serial.<br><br>
+Если подключено несколько телефонов — выбери устройство в списке рядом со значком. Pixel 1 (<code>sailfish</code> / Pixel XL <code>marlin</code>) выбирается сам, если он единственный first-gen Pixel.<br><br>
 ADB нужен только для шагов <b>Удалить + залить</b> и <b>Очистить Pixel</b>.`,
+    adbPick: 'Выбери устройство ADB',
+    adbUnauthorized: 'не авторизовано',
+    adbOffline: 'офлайн',
+    adbPixel1: 'Pixel 1',
+    badgeAdbTitle: 'Нажми, чтобы выбрать устройство ADB',
 
     popupChromeTitle: 'Зачем запускать Chrome?',
     popupChromeBody: `Все запросы к Google Photos идут через браузер — не напрямую из приложения. Это нужно потому, что API Google требует <b>сессионных кук</b>, которые существуют только внутри Chrome.<br><br>
@@ -760,7 +775,6 @@ ADB нужен только для шагов <b>Удалить + залить</
     viewerNoMatches: 'Нет совпадений',
     refreshTitle: 'Обновить статус',
     badgeCdpTitle: 'Нажми, чтобы узнать про CDP',
-    badgeAdbTitle: 'Нажми, чтобы узнать про ADB',
   },
 
   zh_TW: {
@@ -903,8 +917,14 @@ ADB нужен только для шагов <b>Удалить + залить</
     popupAdbBody: `<b>ADB</b> 是透過 USB 與 Android 裝置通訊的工具。本程式用它把照片推送到 Pixel 1 的相機資料夾。<br><br>
 Pixel 上的 Google 相簿接著會備份這些檔案——而 Pixel 1 有永久例外，上傳完全 <b>不佔配額</b>。<br><br>
 <b>設定：</b> 下載 <a href="https://developer.android.com/tools/releases/platform-tools" target="_blank" style="color:var(--accent)">Platform Tools</a>，把 <code>adb.exe</code> 放到專案旁的 <code>adb/</code> 資料夾。<br><br>
-<b>綠色徽章：</b> Pixel 1 已用 USB 連接、開發人員選項已授權 USB 偵錯，且 ADB 看得到裝置。<br><br>
+<b>綠色徽章：</b> 已選的 Pixel 已用 USB 連接、已授權 USB 偵錯，且指令只會打到該序號。<br><br>
+若同時插了多台手機，用徽章旁的下拉選單指定裝置。若只有一台初代 Pixel（<code>sailfish</code>／Pixel XL <code>marlin</code>），會自動選它。<br><br>
 只有 <b>移到垃圾桶並重新上傳</b> 和 <b>清理 Pixel</b> 這兩步需要 ADB。`,
+    adbPick: '選擇 ADB 裝置',
+    adbUnauthorized: '未授權',
+    adbOffline: '離線',
+    adbPixel1: 'Pixel 1',
+    badgeAdbTitle: '點擊選擇 ADB 裝置',
 
     popupChromeTitle: '為什麼要啟動 Chrome？',
     popupChromeBody: `所有 Google 相簿 API 呼叫都經過瀏覽器，而不是直接由本程式發出。因為 Google 的 API 需要你的 <b>工作階段 Cookie</b>，那些 Cookie 只存在 Chrome 裡。<br><br>
@@ -940,7 +960,6 @@ Pixel 上的 Google 相簿接著會備份這些檔案——而 Pixel 1 有永久
     viewerNoMatches: '沒有符合的結果',
     refreshTitle: '重新整理狀態',
     badgeCdpTitle: '點擊了解 CDP',
-    badgeAdbTitle: '點擊了解 ADB',
   },
 
   zh_CN: {
@@ -1083,8 +1102,14 @@ Pixel 上的 Google 相簿接著會備份這些檔案——而 Pixel 1 有永久
     popupAdbBody: `<b>ADB</b> 是通过 USB 与 Android 设备通信的工具。本程序用它把照片推送到 Pixel 1 的相机文件夹。<br><br>
 Pixel 上的 Google 相册接着会备份这些文件——而 Pixel 1 有永久例外，上传完全 <b>不占配额</b>。<br><br>
 <b>设置：</b> 下载 <a href="https://developer.android.com/tools/releases/platform-tools" target="_blank" style="color:var(--accent)">Platform Tools</a>，把 <code>adb.exe</code> 放到项目旁的 <code>adb/</code> 文件夹。<br><br>
-<b>绿色徽章：</b> Pixel 1 已用 USB 连接、开发者选项已授权 USB 调试，且 ADB 能看到设备。<br><br>
+<b>绿色徽章：</b> 已选的 Pixel 已用 USB 连接、已授权 USB 调试，且命令只会打到该序列号。<br><br>
+如果同时插了多台手机，用徽章旁的下拉菜单指定设备。若只有一台初代 Pixel（<code>sailfish</code>／Pixel XL <code>marlin</code>），会自动选它。<br><br>
 只有 <b>移到回收站并重新上传</b> 和 <b>清理 Pixel</b> 这两步需要 ADB。`,
+    adbPick: '选择 ADB 设备',
+    adbUnauthorized: '未授权',
+    adbOffline: '离线',
+    adbPixel1: 'Pixel 1',
+    badgeAdbTitle: '点击选择 ADB 设备',
 
     popupChromeTitle: '为什么要启动 Chrome？',
     popupChromeBody: `所有 Google 相册 API 调用都经过浏览器，而不是直接由本程序发出。因为 Google 的 API 需要你的 <b>会话 Cookie</b>，那些 Cookie 只存在于 Chrome 中。<br><br>
@@ -1120,7 +1145,6 @@ Pixel 上的 Google 相册接着会备份这些文件——而 Pixel 1 有永久
     viewerNoMatches: '没有匹配结果',
     refreshTitle: '刷新状态',
     badgeCdpTitle: '点击了解 CDP',
-    badgeAdbTitle: '点击了解 ADB',
   },
 
   ja_JP: {
@@ -1263,8 +1287,14 @@ Pixel 上的 Google 相册接着会备份这些文件——而 Pixel 1 有永久
     popupAdbBody: `<b>ADB</b> は USB 経由で Android 端末と通信するツールです。このアプリは Pixel 1 のカメラフォルダへ写真を転送するために使います。<br><br>
 Pixel 上の Google フォトがその後バックアップします。Pixel 1 には永久の例外があり、アップロードは <b>容量を消費しません</b>。<br><br>
 <b>設定：</b> <a href="https://developer.android.com/tools/releases/platform-tools" target="_blank" style="color:var(--accent)">Platform Tools</a> をダウンロードし、<code>adb.exe</code> をプロジェクト横の <code>adb/</code> フォルダに置いてください。<br><br>
-<b>緑のバッジ：</b> Pixel 1 が USB 接続され、開発者向けオプションで USB デバッグが許可され、ADB が端末を認識しています。<br><br>
+<b>緑のバッジ：</b> 選択した Pixel が USB 接続され、USB デバッグが許可されており、コマンドはそのシリアルにだけ送られます。<br><br>
+複数台をつないでいるときは、バッジ横のリストで端末を指定してください。初代 Pixel（<code>sailfish</code>／Pixel XL <code>marlin</code>）が 1 台だけの場合は自動選択します。<br><br>
 ADB が必要なのは <b>ゴミ箱へ移動して再アップロード</b> と <b>Pixel をクリーンアップ</b> だけです。`,
+    adbPick: 'ADB 端末を選択',
+    adbUnauthorized: '未許可',
+    adbOffline: 'オフライン',
+    adbPixel1: 'Pixel 1',
+    badgeAdbTitle: 'クリックして ADB 端末を選ぶ',
 
     popupChromeTitle: 'なぜ Chrome を起動するのか？',
     popupChromeBody: `Google フォト API への呼び出しは、このアプリから直接ではなく、ブラウザ経由で行われます。Google の API には <b>セッション Cookie</b> が必要で、それは Chrome 内にしか存在しないためです。<br><br>
@@ -1300,7 +1330,6 @@ ADB が必要なのは <b>ゴミ箱へ移動して再アップロード</b> と 
     viewerNoMatches: '一致する項目がありません',
     refreshTitle: '状態を更新',
     badgeCdpTitle: 'クリックして CDP について見る',
-    badgeAdbTitle: 'クリックして ADB について見る',
   }
 };
 
@@ -1533,8 +1562,86 @@ function setStepDone(opName, ok) {
 
 // ── Status ────────────────────────────────────────────────────────────────────
 
+function adbDeviceLabel(d) {
+  const name = d.model || d.serial;
+  const hint = d.isPixel1 ? ` · ${t('adbPixel1')}` : '';
+  let state = '';
+  if (d.state === 'unauthorized') state = ` (${t('adbUnauthorized')})`;
+  else if (d.state === 'offline') state = ` (${t('adbOffline')})`;
+  else if (d.state && d.state !== 'device') state = ` (${d.state})`;
+  return `${name}${hint}  ${d.serial}${state}`;
+}
+
+function updateAdbUi(r) {
+  const adbBadge = document.getElementById('adbBadge');
+  const sel = document.getElementById('adbDeviceSelect');
+  const labelEl = document.getElementById('adbLabel');
+  if (!adbBadge) return;
+  if (r.adbBinaryFound === false) {
+    adbReady = false;
+    adbBadge.className = 'badge bad';
+    adbBadge.title = t('adbNotFound');
+    if (labelEl) labelEl.textContent = 'ADB';
+    if (sel) sel.hidden = true;
+    if (!adbBinaryWarnShown) {
+      adbBinaryWarnShown = true;
+      appendLog(t('adbNotFound'), 'warn');
+    }
+    return;
+  }
+  const info = r.adb || {};
+  const devices = info.devices || [];
+  adbReady = !!info.connected;
+  adbBadge.className = `badge ${adbReady ? 'ok' : 'warn'}`;
+  adbBadge.title = t('badgeAdbTitle');
+  if (labelEl) {
+    if (info.current) labelEl.textContent = `ADB ${info.current.model || info.current.serial}`;
+    else if (devices.length) labelEl.textContent = `ADB (${devices.length})`;
+    else labelEl.textContent = 'ADB';
+  }
+  if (!sel) return;
+  sel.hidden = devices.length === 0;
+  const want = info.selected || '';
+  sel.innerHTML = '';
+  if (!info.selected && devices.filter(d => d.ready).length > 1) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = t('adbPick');
+    sel.appendChild(opt);
+  }
+  for (const d of devices) {
+    const opt = document.createElement('option');
+    opt.value = d.serial;
+    opt.textContent = adbDeviceLabel(d);
+    opt.disabled = !d.ready;
+    sel.appendChild(opt);
+  }
+  if (want) sel.value = want;
+}
+
+async function onAdbDeviceChange() {
+  const serial = document.getElementById('adbDeviceSelect')?.value || null;
+  if (serial) localStorage.setItem('adbSerial', serial);
+  else localStorage.removeItem('adbSerial');
+  const r = await post('/api/select-adb', { serial });
+  if (r.error) {
+    appendLog(`Error: ${r.error}`, 'error');
+    refreshStatus();
+    return;
+  }
+  updateAdbUi({ adbBinaryFound: true, adbConnected: r.connected, adb: r });
+  updateButtonStates();
+}
+
 async function refreshStatus() {
   try {
+    if (!adbSerialSynced) {
+      adbSerialSynced = true;
+      const saved = localStorage.getItem('adbSerial');
+      if (saved) {
+        try { await post('/api/select-adb', { serial: saved }); } catch {}
+      }
+    }
     const r = await fetch(`${API}/api/status`).then(r => r.json());
     const cdp = document.getElementById('cdpBadge');
     cdp.className = `badge ${r.cdpConnected ? 'ok' : 'bad'}`;
@@ -1542,19 +1649,7 @@ async function refreshStatus() {
       ? (r.accountEmail ? `CDP (${r.accountEmail})` : (r.account && r.account !== '/' ? `CDP ${r.account}` : 'CDP'))
       : 'CDP';
     document.getElementById('cdpLabel').textContent = cdpText;
-    const adbBadge = document.getElementById('adbBadge');
-    if (r.adbBinaryFound === false) {
-      adbBadge.className = 'badge bad';
-      adbBadge.title = 'ADB binary not found in adb/ folder';
-      if (!adbBinaryWarnShown) {
-        adbBinaryWarnShown = true;
-        appendLog(t('adbNotFound'), 'warn');
-      }
-    } else {
-      adbBadge.className = `badge ${r.adbConnected ? 'ok' : 'warn'}`;
-      adbBadge.title = '';
-    }
-    adbBadge.innerHTML = `<div class="dot"></div> ADB`;
+    updateAdbUi(r);
     if (r.manifest) updateStats(r.manifest);
     if (r.workDir) document.getElementById('workDirLabel').textContent = t('workDirLabel', r.workDir);
     if (r.downloadsDir) document.getElementById('downloadsLabel').textContent = t('downloadsLabel', r.downloadCount ?? 0);
@@ -1656,11 +1751,11 @@ function updateButtonStates() {
   setBtn('btn-view-scanned', (s.quota ?? 0) > 0);
   setBtn('btn-match', (s.quota ?? 0) > 0);
   setBtn('btn-view-unmatched', (s.quota ?? 0) > 0);
-  setBtn('btn-trash-reupload', (s.downloaded ?? 0) > 0);
+  setBtn('btn-trash-reupload', (s.downloaded ?? 0) > 0 && adbReady);
   setBtn('btn-verify', (s.trashed ?? 0) > 0);
   setBtn('btn-view-unverified', (s.trashed ?? 0) > (s.verified ?? 0));
   setBtn('btn-restore-albums', (s.verified ?? 0) > 0);
-  setBtn('btn-cleanup-pixel', (s.trashed ?? 0) > 0);
+  setBtn('btn-cleanup-pixel', (s.trashed ?? 0) > 0 && adbReady);
 
   const stopBtn = document.getElementById('btn-stop-trash');
   if (stopBtn) {
