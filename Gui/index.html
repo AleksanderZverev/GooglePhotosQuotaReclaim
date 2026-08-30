@@ -14,8 +14,7 @@
   --radius: 8px;
 }
 body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "Microsoft YaHei UI", "Microsoft YaHei", "Yu Gothic UI", "Yu Gothic", sans-serif; font-size: 14px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-.lang-switch { display: flex; gap: 2px; flex-shrink: 0; }
-.lang-switch button { padding: 4px 8px; font-size: 12px; }
+.lang-select { max-width: 140px; padding: 3px 6px; font-size: 12px; background: var(--surface2, var(--bg)); color: inherit; border: 1px solid var(--border); border-radius: 6px; flex-shrink: 0; }
 
 /* Header */
 header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
@@ -181,13 +180,13 @@ button.small { padding: 4px 12px; font-size: 12px; }
   <h1 id="app-title">Google Photos Quota Reclaim</h1>
   <div id="cdpBadge" class="badge bad" title="Click to learn about CDP" onclick="showPopup('cdp')"><div class="dot"></div><span id="cdpLabel">CDP</span></div>
   <div id="adbBadge" class="badge bad" title="Click to learn about ADB" onclick="showPopup('adb')"><div class="dot"></div> ADB</div>
-  <div class="lang-switch">
-    <button class="small primary" id="btn-lang-en" onclick="setLang('en')">EN</button>
-    <button class="small" id="btn-lang-ru" onclick="setLang('ru')">RU</button>
-    <button class="small" id="btn-lang-zh_TW" onclick="setLang('zh_TW')">繁</button>
-    <button class="small" id="btn-lang-zh_CN" onclick="setLang('zh_CN')">简</button>
-    <button class="small" id="btn-lang-ja_JP" onclick="setLang('ja_JP')">日</button>
-  </div>
+  <select id="langSelect" class="lang-select" onchange="setLang(this.value)" title="Language">
+    <option value="en">English</option>
+    <option value="ru">Русский</option>
+    <option value="zh_TW">繁體中文</option>
+    <option value="zh_CN">简体中文</option>
+    <option value="ja_JP">日本語</option>
+  </select>
   <div style="width:1px;height:20px;background:var(--border)"></div>
   <button class="small primary" id="launchChromeBtn" onclick="launchChrome()">Launch Chrome</button>
   <button class="help-btn" onclick="showPopup('chrome')" title="?">?</button>
@@ -1305,7 +1304,6 @@ ADB が必要なのは <b>ゴミ箱へ移動して再アップロード</b> と 
   }
 };
 
-const LANG_CODES = ['en', 'ru', 'zh_TW', 'zh_CN', 'ja_JP'];
 const HTML_LANG = { en: 'en', ru: 'ru', zh_TW: 'zh-Hant', zh_CN: 'zh-Hans', ja_JP: 'ja' };
 if (!LANGS[lang]) lang = 'en';
 
@@ -1339,10 +1337,8 @@ function buildPopups() {
 
 function applyLang() {
   document.documentElement.lang = HTML_LANG[lang] || 'en';
-  for (const code of LANG_CODES) {
-    const btn = document.getElementById(`btn-lang-${code}`);
-    if (btn) btn.className = `small${lang === code ? ' primary' : ''}`;
-  }
+  const langSel = document.getElementById('langSelect');
+  if (langSel) langSel.value = lang;
 
   setText('app-title', t('appTitle'));
   setText('btn-reset', t('reset'));
