@@ -13,7 +13,9 @@
   --text: #e2e8f0; --muted: #64748b; --muted2: #475569;
   --radius: 8px;
 }
-body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; font-size: 14px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "Microsoft YaHei UI", "Microsoft YaHei", "Yu Gothic UI", "Yu Gothic", sans-serif; font-size: 14px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+.lang-switch { display: flex; gap: 2px; flex-shrink: 0; }
+.lang-switch button { padding: 4px 8px; font-size: 12px; }
 
 /* Header */
 header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
@@ -179,9 +181,12 @@ button.small { padding: 4px 12px; font-size: 12px; }
   <h1 id="app-title">Google Photos Quota Reclaim</h1>
   <div id="cdpBadge" class="badge bad" title="Click to learn about CDP" onclick="showPopup('cdp')"><div class="dot"></div><span id="cdpLabel">CDP</span></div>
   <div id="adbBadge" class="badge bad" title="Click to learn about ADB" onclick="showPopup('adb')"><div class="dot"></div> ADB</div>
-  <div style="display:flex;gap:2px">
+  <div class="lang-switch">
     <button class="small primary" id="btn-lang-en" onclick="setLang('en')">EN</button>
     <button class="small" id="btn-lang-ru" onclick="setLang('ru')">RU</button>
+    <button class="small" id="btn-lang-zh_TW" onclick="setLang('zh_TW')">繁</button>
+    <button class="small" id="btn-lang-zh_CN" onclick="setLang('zh_CN')">简</button>
+    <button class="small" id="btn-lang-ja_JP" onclick="setLang('ja_JP')">日</button>
   </div>
   <div style="width:1px;height:20px;background:var(--border)"></div>
   <button class="small primary" id="launchChromeBtn" onclick="launchChrome()">Launch Chrome</button>
@@ -212,7 +217,7 @@ button.small { padding: 4px 12px; font-size: 12px; }
     <div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
         <div class="section-title" id="stat-section-title" style="margin-bottom:0">Manifest Stats</div>
-        <button class="small" onclick="refreshStatus()" title="Refresh status" style="padding:2px 8px;font-size:13px;line-height:1">↺</button>
+        <button class="small" id="btn-refresh-status" onclick="refreshStatus()" title="Refresh status" style="padding:2px 8px;font-size:13px;line-height:1">↺</button>
       </div>
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-label" id="stat-label-total">Total items</div><div class="stat-value" id="sTotal">—</div></div>
@@ -569,6 +574,14 @@ When you click Load, the app asks Chrome to fetch your album list using the same
     confirmReset: 'Delete manifest.json and reset all step states?\n\nDownloaded files will NOT be deleted.',
     confirmDeleteProfile: (label, dir) => `Delete Chrome profile${label}?\n${dir}\n\nMake sure Chrome is closed.`,
     gotIt: 'Got it',
+    lblConcurrency: 'Parallel streams:',
+    btnStop: 'Stop',
+    btnStopping: 'Stopping…',
+    viewerEmpty: 'No items',
+    viewerNoMatches: 'No matches',
+    refreshTitle: 'Refresh status',
+    badgeCdpTitle: 'Click to learn about CDP',
+    badgeAdbTitle: 'Click to learn about ADB',
   },
 
   ru: {
@@ -741,13 +754,565 @@ ADB нужен только для шагов <b>Удалить + залить</
     confirmReset: 'Удалить manifest.json и сбросить все шаги?\n\nСкачанные файлы удалены не будут.',
     confirmDeleteProfile: (label, dir) => `Удалить профиль Chrome${label}?\n${dir}\n\nУбедись, что Chrome закрыт.`,
     gotIt: 'Понял',
+    lblConcurrency: 'Параллельных потоков:',
+    btnStop: 'Стоп',
+    btnStopping: 'Остановка…',
+    viewerEmpty: 'Нет элементов',
+    viewerNoMatches: 'Нет совпадений',
+    refreshTitle: 'Обновить статус',
+    badgeCdpTitle: 'Нажми, чтобы узнать про CDP',
+    badgeAdbTitle: 'Нажми, чтобы узнать про ADB',
+  },
+
+  zh_TW: {
+    appTitle: 'Google Photos Quota Reclaim',
+    launchChrome: '啟動 Chrome',
+    deleteProfile: '刪除設定檔',
+    reset: '重設',
+    resetTooltip: '刪除 manifest.json 並重設所有步驟狀態。已下載的檔案不會被刪除。',
+
+    albums: '相簿',
+    albumsEmpty: '相簿是從 <b>Chrome 裡的 Google 相簿</b> 載入，不是從 Pixel。<br><br>請先連上 Chrome（CDP 徽章變綠），再按「載入」。',
+    albumsNone: '此 Google 帳戶沒有相簿。<br><small>相簿是從 Chrome 裡的 Google 相簿取得。</small>',
+    load: '載入',
+    reload: '重新載入',
+    all: '全選',
+    none: '清除',
+    selectedCount: (n) => `已選 ${n} 個`,
+    workDirLabel: (dir) => `工作目錄：${dir}`,
+    downloadsLabel: (n) => `下載：${n} 個檔案`,
+
+    manifestStats: '清單統計',
+    statTotal: '總項目',
+    statQuota: '佔用配額',
+    statDownloaded: '已下載',
+    statEnriched: '已補齊（dedupKey）',
+    statAlbumsSaved: '已儲存相簿',
+    statTrashed: '已刪除 + 已推送',
+    statVerified: '已驗證',
+    statRestored: '已還原相簿',
+
+    pipeline: '流程',
+
+    step1Name: '選擇相簿',
+    step1Desc: '在側欄選擇要處理的相簿',
+    step1Pending: '尚未選擇相簿',
+    step1Ready: (n) => `已選 ${n} 本相簿`,
+    step1ScanAll: '掃描整個媒體庫',
+
+    step2Name: '掃描與準備',
+    step2Desc: '找出佔用配額的項目 · 取得 dedupKey · 儲存相簿歸屬 · 偵測已封存照片',
+    step2Pending1: '請先選擇相簿，或勾選「掃描整個媒體庫」',
+    step2Pending2: '可以開始掃描',
+    step2Done: (n) => `找到 ${n} 個佔用配額的項目`,
+    btnScan: '掃描',
+    btnViewScanned: '檢視',
+    chkScanAll: '掃描整個媒體庫（忽略相簿選擇）',
+
+    step3Name: '配對下載檔',
+    step3Desc: '將 ./downloads/ 中的檔案對應到清單項目',
+    step3Note: '請把照片檔放到 <b>downloads/</b> 資料夾。若要保留中繼資料（日期、GPS），請先用 <a href="https://github.com/Xentraxx/GooglePhotosTakeoutHelper_Neo" target="_blank" style="color:var(--accent)">GooglePhotosTakeoutHelper Neo</a> 處理。',
+    step3Pending1: '請先掃描',
+    step3Pending2: '把檔案放到 ./downloads/，再按配對',
+    step3Done: (n, total) => `已配對 ${n}/${total} 個檔案`,
+    btnMatch: '配對',
+    btnViewUnmatched: '檢視',
+
+    viewerScannedTitle: '已掃描的佔用配額項目',
+    viewerUnmatchedTitle: '未配對項目（沒有本機檔案）',
+    viewerSearch: '搜尋…',
+    viewerOriginalQuality: '原始畫質',
+    viewerStorageSaver: '節省空間',
+    viewerNoAlbum: '無相簿',
+    viewerArchived: '已封存',
+    viewerClose: '關閉',
+    viewerCountAll: (n) => `${n} 個項目`,
+    viewerCountFiltered: (n, total) => `${n} / ${total}`,
+
+    step4Name: '移到垃圾桶並重新上傳',
+    step4Desc: '從雲端刪除 · 推送到 Pixel · ',
+    step4Irreversible: '不可復原',
+    step4Pending1: '請先配對下載檔',
+    step4Pending2: (n) => `${n} 個項目就緒`,
+    step4Done: (n) => `已推送 ${n} 個項目到 Pixel`,
+    chkEmptyTrash: '移到垃圾桶後立刻永久刪除（避免重新上傳時被自動丟進垃圾桶）',
+    btnTrash: '刪除並推送',
+
+    step5Name: '驗證',
+    step5Desc: '等待 Pixel 備份 1–4 小時，再確認配額已釋放',
+    step5Pending1: '請先完成刪除並重新上傳',
+    step5Pending2: '等待 Pixel 備份完成後再驗證',
+    step5Done: (n, total) => `已驗證 ${n}/${total}`,
+    btnVerify: '驗證',
+    btnViewUnverified: '檢視',
+    viewerUnverifiedTitle: '尚未驗證（等待備份）',
+
+    step6Name: '還原相簿與封存',
+    step6Desc: '把照片放回原本的相簿 · 將原本已封存的照片重新封存',
+    step6Pending1: '請先驗證',
+    step6Pending2: (n) => `${n} 個項目就緒`,
+    step6Done: (n) => `已還原 ${n} 個項目`,
+    btnRestore: '還原',
+
+    step7Name: '清理 Pixel',
+    step7Desc: '從 /sdcard/DCIM/Camera/ 移除已推送的檔案',
+    step7Pending: '請先完成刪除並重新上傳',
+    step7Ready: (n) => `Pixel 上有 ${n} 個檔案待清理`,
+    btnCleanup: '清理',
+
+    step8Name: '向作者致謝',
+    step8Desc: '這個工具免費幫你釋出 Google 相簿空間。如果有幫上忙，請作者喝杯咖啡就是最好的感謝。',
+    btnCoffee: '☕ 請我喝杯咖啡',
+
+    logTitle: '日誌',
+    logClear: '清除',
+
+    modalTrashTitle: '⚠️ 開始前請先在 Pixel 上操作',
+    modalTrashBody: (warning) => `為避免 Google 相簿把上傳的檔案標成「已經上傳過」，請先：<br><br>
+      <b>1.</b> 在 Pixel 開啟 <b>Google 相簿</b><br>
+      <b>2.</b> 點右上角頭像<br>
+      <b>3.</b> 選擇 <b>「不使用帳戶使用『相片』」</b><br><br>
+      完成後按 <b>就緒，開始</b>。${warning}`,
+    modalTrashEmptyWarning: `<br><div style="margin-top:10px;padding:8px 10px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:6px;font-size:12px;color:var(--error)">⚠️ 已啟用「從垃圾桶永久刪除」——檔案移入垃圾桶後會立刻被永久移除。</div>`,
+    modalTrashCancel: '取消',
+    modalTrashConfirm: '就緒，開始',
+
+    modalAfterTrashTitle: '✓ 檔案已推送到 Pixel — 請恢復帳戶',
+    modalAfterTrashBody: `檔案已推送到 Pixel。現在請恢復 Google 帳戶，讓相簿開始備份：<br><br>
+      <b>1.</b> 在 Pixel 開啟 <b>Google 相簿</b><br>
+      <b>2.</b> 點 <b>「登入」</b><br>
+      <b>3.</b> 使用你的 <b>Google 帳戶</b> 登入<br><br>
+      <div style="padding:8px 10px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:6px;font-size:12px;color:var(--warn)">⚠️ 若帳戶已經選好，Google 可能會立刻詢問是否開啟同步。請切到上一步使用的同一個帳戶，並同意同步。</div><br>
+      Google 相簿會看到新檔案，並免費上傳到雲端。<br><br>
+      等待 1–4 小時後，再按第 5 步的 <b>驗證</b>。`,
+    modalAfterTrashClose: '知道了，關閉',
+
+    modalAfterCleanupTitle: '✓ 資料夾已清理',
+    modalAfterCleanupBody: `檔案已透過 ADB 刪除，但 Pixel 上的 <b>Google 檔案</b> 和 <b>Google 相簿</b> 可能還會顯示它們——這是正常的。<br><br>
+      Android 的媒體索引不會立刻更新。檔案實體已經不在，所以從 App 再刪一次會出現 <i>「無法刪除」</i>。<br><br>
+      <b>怎麼辦：</b> 重開 Pixel 即可。重開後媒體索引會重新掃描，「幽靈」項目就會消失。`,
+    modalAfterCleanupClose: '知道了',
+
+    popupCdpTitle: 'CDP — Chrome DevTools Protocol',
+    popupCdpBody: `<b>CDP</b> 是 Chrome 內建的除錯 API。本程式用它與已開啟的 Google 相簿分頁通訊——讀取驗證權杖、代你呼叫 API，並在帳戶之間切換。<br><br>
+<b>綠色徽章：</b> Chrome 已用 <code>--remote-debugging-port=9222</code> 啟動，且已開啟 Google 相簿分頁。<br><br>
+所有媒體庫操作（掃描、補齊、刪除、驗證）都需要有效的 CDP 連線。`,
+
+    adbNotFound: `在 adb/ 資料夾找不到 ADB 程式。請從 https://developer.android.com/tools/releases/platform-tools 下載 Platform Tools，並把 adb.exe 放到 adb/ 資料夾。`,
+
+    popupAdbTitle: 'ADB — Android Debug Bridge',
+    popupAdbBody: `<b>ADB</b> 是透過 USB 與 Android 裝置通訊的工具。本程式用它把照片推送到 Pixel 1 的相機資料夾。<br><br>
+Pixel 上的 Google 相簿接著會備份這些檔案——而 Pixel 1 有永久例外，上傳完全 <b>不佔配額</b>。<br><br>
+<b>設定：</b> 下載 <a href="https://developer.android.com/tools/releases/platform-tools" target="_blank" style="color:var(--accent)">Platform Tools</a>，把 <code>adb.exe</code> 放到專案旁的 <code>adb/</code> 資料夾。<br><br>
+<b>綠色徽章：</b> Pixel 1 已用 USB 連接、開發人員選項已授權 USB 偵錯，且 ADB 看得到裝置。<br><br>
+只有 <b>移到垃圾桶並重新上傳</b> 和 <b>清理 Pixel</b> 這兩步需要 ADB。`,
+
+    popupChromeTitle: '為什麼要啟動 Chrome？',
+    popupChromeBody: `所有 Google 相簿 API 呼叫都經過瀏覽器，而不是直接由本程式發出。因為 Google 的 API 需要你的 <b>工作階段 Cookie</b>，那些 Cookie 只存在 Chrome 裡。<br><br>
+按 <b>啟動 Chrome</b> 會開啟專用視窗，並具備：<br>
+• 遠端偵錯（埠 9222）<br>
+• 隔離的暫時設定檔<br><br>
+請在該視窗登入 Google 相簿。連上後 CDP 徽章會變綠。<br><br>
+若 Chrome 已經用 <code>--remote-debugging-port=9222</code> 在跑，可以跳過這步。`,
+
+    popupAlbumsTitle: '相簿從哪裡來？',
+    popupAlbumsBody: `相簿是透過 <b>Chrome 從 Google 相簿</b> 取得，不是來自 Pixel 或本機檔案。<br><br>
+按「載入」時，程式會請 Chrome 用 Google 相簿網站內部的同一套 API 取得相簿清單。<br><br>
+<b>條件：</b><br>
+• Chrome 已連線（CDP 徽章為綠色）<br>
+• 已開啟並登入 Google 相簿分頁<br><br>
+<b>注意：</b> 這一步不需要 Pixel——Pixel 只用在「移到垃圾桶並重新上傳」，以便以零配額重新上傳。`,
+
+    albumsLoaded: (n) => `已載入 ${n} 本相簿。`,
+    albumsError: (e) => `相簿錯誤：${e}`,
+    albumsFailed: (e) => `無法載入相簿：${e}`,
+    chromeLaunched: (dir) => `已啟動 Chrome。設定檔：${dir}`,
+    chromeFailed: (e) => `Chrome 啟動失敗：${e}`,
+    profileDeleted: (p) => `已刪除設定檔：${p}`,
+    profileDeleteFailed: (e) => `刪除失敗：${e}`,
+    manifestReset: '清單已重設。',
+    confirmReset: '要刪除 manifest.json 並重設所有步驟狀態嗎？\n\n已下載的檔案不會被刪除。',
+    confirmDeleteProfile: (label, dir) => `要刪除 Chrome 設定檔${label}嗎？\n${dir}\n\n請先關閉 Chrome。`,
+    gotIt: '知道了',
+    lblConcurrency: '平行串流數：',
+    btnStop: '停止',
+    btnStopping: '正在停止…',
+    viewerEmpty: '沒有項目',
+    viewerNoMatches: '沒有符合的結果',
+    refreshTitle: '重新整理狀態',
+    badgeCdpTitle: '點擊了解 CDP',
+    badgeAdbTitle: '點擊了解 ADB',
+  },
+
+  zh_CN: {
+    appTitle: 'Google Photos Quota Reclaim',
+    launchChrome: '启动 Chrome',
+    deleteProfile: '删除配置文件',
+    reset: '重置',
+    resetTooltip: '删除 manifest.json 并重置所有步骤状态。已下载的文件不会被删除。',
+
+    albums: '相册',
+    albumsEmpty: '相册从 <b>Chrome 中的 Google 相册</b> 加载，而不是从 Pixel。<br><br>请先连接 Chrome（CDP 徽章变绿），再点击“加载”。',
+    albumsNone: '此 Google 帐号没有相册。<br><small>相册从 Chrome 中的 Google 相册获取。</small>',
+    load: '加载',
+    reload: '重新加载',
+    all: '全选',
+    none: '清除',
+    selectedCount: (n) => `已选 ${n} 个`,
+    workDirLabel: (dir) => `工作目录：${dir}`,
+    downloadsLabel: (n) => `下载：${n} 个文件`,
+
+    manifestStats: '清单统计',
+    statTotal: '总项目',
+    statQuota: '占用配额',
+    statDownloaded: '已下载',
+    statEnriched: '已补齐（dedupKey）',
+    statAlbumsSaved: '已保存相册',
+    statTrashed: '已删除 + 已推送',
+    statVerified: '已验证',
+    statRestored: '已还原相册',
+
+    pipeline: '流程',
+
+    step1Name: '选择相册',
+    step1Desc: '在侧栏选择要处理的相册',
+    step1Pending: '尚未选择相册',
+    step1Ready: (n) => `已选 ${n} 个相册`,
+    step1ScanAll: '扫描整个媒体库',
+
+    step2Name: '扫描并准备',
+    step2Desc: '找出占用配额的项目 · 获取 dedupKey · 保存相册归属 · 检测已归档照片',
+    step2Pending1: '请先选择相册，或勾选“扫描整个媒体库”',
+    step2Pending2: '可以开始扫描',
+    step2Done: (n) => `找到 ${n} 个占用配额的项目`,
+    btnScan: '扫描',
+    btnViewScanned: '查看',
+    chkScanAll: '扫描整个媒体库（忽略相册选择）',
+
+    step3Name: '匹配下载文件',
+    step3Desc: '将 ./downloads/ 中的文件对应到清单项目',
+    step3Note: '请把照片文件放到 <b>downloads/</b> 文件夹。若要保留元数据（日期、GPS），请先用 <a href="https://github.com/Xentraxx/GooglePhotosTakeoutHelper_Neo" target="_blank" style="color:var(--accent)">GooglePhotosTakeoutHelper Neo</a> 处理。',
+    step3Pending1: '请先扫描',
+    step3Pending2: '把文件放到 ./downloads/，再点击匹配',
+    step3Done: (n, total) => `已匹配 ${n}/${total} 个文件`,
+    btnMatch: '匹配',
+    btnViewUnmatched: '查看',
+
+    viewerScannedTitle: '已扫描的占用配额项目',
+    viewerUnmatchedTitle: '未匹配项目（没有本地文件）',
+    viewerSearch: '搜索…',
+    viewerOriginalQuality: '原始画质',
+    viewerStorageSaver: '节省空间',
+    viewerNoAlbum: '无相册',
+    viewerArchived: '已归档',
+    viewerClose: '关闭',
+    viewerCountAll: (n) => `${n} 个项目`,
+    viewerCountFiltered: (n, total) => `${n} / ${total}`,
+
+    step4Name: '移到回收站并重新上传',
+    step4Desc: '从云端删除 · 推送到 Pixel · ',
+    step4Irreversible: '不可撤销',
+    step4Pending1: '请先匹配下载文件',
+    step4Pending2: (n) => `${n} 个项目就绪`,
+    step4Done: (n) => `已推送 ${n} 个项目到 Pixel`,
+    chkEmptyTrash: '移到回收站后立即永久删除（避免重新上传时被自动丢进回收站）',
+    btnTrash: '删除并推送',
+
+    step5Name: '验证',
+    step5Desc: '等待 Pixel 备份 1–4 小时，再确认配额已释放',
+    step5Pending1: '请先完成删除并重新上传',
+    step5Pending2: '等待 Pixel 备份完成后再验证',
+    step5Done: (n, total) => `已验证 ${n}/${total}`,
+    btnVerify: '验证',
+    btnViewUnverified: '查看',
+    viewerUnverifiedTitle: '尚未验证（等待备份）',
+
+    step6Name: '还原相册与归档',
+    step6Desc: '把照片放回原来的相册 · 将原本已归档的照片重新归档',
+    step6Pending1: '请先验证',
+    step6Pending2: (n) => `${n} 个项目就绪`,
+    step6Done: (n) => `已还原 ${n} 个项目`,
+    btnRestore: '还原',
+
+    step7Name: '清理 Pixel',
+    step7Desc: '从 /sdcard/DCIM/Camera/ 移除已推送的文件',
+    step7Pending: '请先完成删除并重新上传',
+    step7Ready: (n) => `Pixel 上有 ${n} 个文件待清理`,
+    btnCleanup: '清理',
+
+    step8Name: '向作者致谢',
+    step8Desc: '这个工具免费帮你释放了 Google 相册空间。如果有帮上忙，请作者喝杯咖啡就是最好的感谢。',
+    btnCoffee: '☕ 请我喝杯咖啡',
+
+    logTitle: '日志',
+    logClear: '清除',
+
+    modalTrashTitle: '⚠️ 开始前请先在 Pixel 上操作',
+    modalTrashBody: (warning) => `为避免 Google 相册把上传的文件标成“已经上传过”，请先：<br><br>
+      <b>1.</b> 在 Pixel 打开 <b>Google 相册</b><br>
+      <b>2.</b> 点右上角头像<br>
+      <b>3.</b> 选择 <b>“不使用帐号使用相册”</b><br><br>
+      完成后点击 <b>就绪，开始</b>。${warning}`,
+    modalTrashEmptyWarning: `<br><div style="margin-top:10px;padding:8px 10px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:6px;font-size:12px;color:var(--error)">⚠️ 已启用“从回收站永久删除”——文件移入回收站后会立刻被永久移除。</div>`,
+    modalTrashCancel: '取消',
+    modalTrashConfirm: '就绪，开始',
+
+    modalAfterTrashTitle: '✓ 文件已推送到 Pixel — 请恢复帐号',
+    modalAfterTrashBody: `文件已推送到 Pixel。现在请恢复 Google 帐号，让相册开始备份：<br><br>
+      <b>1.</b> 在 Pixel 打开 <b>Google 相册</b><br>
+      <b>2.</b> 点 <b>“登录”</b><br>
+      <b>3.</b> 使用你的 <b>Google 帐号</b> 登录<br><br>
+      <div style="padding:8px 10px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:6px;font-size:12px;color:var(--warn)">⚠️ 若帐号已经选好，Google 可能会立刻询问是否开启同步。请切到上一步使用的同一个帐号，并同意同步。</div><br>
+      Google 相册会看到新文件，并免费上传到云端。<br><br>
+      等待 1–4 小时后，再点第 5 步的 <b>验证</b>。`,
+    modalAfterTrashClose: '知道了，关闭',
+
+    modalAfterCleanupTitle: '✓ 文件夹已清理',
+    modalAfterCleanupBody: `文件已通过 ADB 删除，但 Pixel 上的 <b>文件</b> 和 <b>Google 相册</b> 可能还会显示它们——这是正常的。<br><br>
+      Android 的媒体索引不会立刻更新。文件实体已经不在，所以从应用再删一次会出现 <i>“无法删除”</i>。<br><br>
+      <b>怎么办：</b> 重启 Pixel 即可。重启后媒体索引会重新扫描，“幽灵”项目就会消失。`,
+    modalAfterCleanupClose: '知道了',
+
+    popupCdpTitle: 'CDP — Chrome DevTools Protocol',
+    popupCdpBody: `<b>CDP</b> 是 Chrome 内置的调试 API。本程序用它与已打开的 Google 相册标签页通信——读取身份验证令牌、代你调用 API，并在帐号之间切换。<br><br>
+<b>绿色徽章：</b> Chrome 已用 <code>--remote-debugging-port=9222</code> 启动，且已打开 Google 相册标签页。<br><br>
+所有媒体库操作（扫描、补齐、删除、验证）都需要有效的 CDP 连接。`,
+
+    adbNotFound: `在 adb/ 文件夹找不到 ADB 程序。请从 https://developer.android.com/tools/releases/platform-tools 下载 Platform Tools，并把 adb.exe 放到 adb/ 文件夹。`,
+
+    popupAdbTitle: 'ADB — Android Debug Bridge',
+    popupAdbBody: `<b>ADB</b> 是通过 USB 与 Android 设备通信的工具。本程序用它把照片推送到 Pixel 1 的相机文件夹。<br><br>
+Pixel 上的 Google 相册接着会备份这些文件——而 Pixel 1 有永久例外，上传完全 <b>不占配额</b>。<br><br>
+<b>设置：</b> 下载 <a href="https://developer.android.com/tools/releases/platform-tools" target="_blank" style="color:var(--accent)">Platform Tools</a>，把 <code>adb.exe</code> 放到项目旁的 <code>adb/</code> 文件夹。<br><br>
+<b>绿色徽章：</b> Pixel 1 已用 USB 连接、开发者选项已授权 USB 调试，且 ADB 能看到设备。<br><br>
+只有 <b>移到回收站并重新上传</b> 和 <b>清理 Pixel</b> 这两步需要 ADB。`,
+
+    popupChromeTitle: '为什么要启动 Chrome？',
+    popupChromeBody: `所有 Google 相册 API 调用都经过浏览器，而不是直接由本程序发出。因为 Google 的 API 需要你的 <b>会话 Cookie</b>，那些 Cookie 只存在于 Chrome 中。<br><br>
+点击 <b>启动 Chrome</b> 会打开专用窗口，并具备：<br>
+• 远程调试（端口 9222）<br>
+• 隔离的临时配置文件<br><br>
+请在该窗口登录 Google 相册。连接后 CDP 徽章会变绿。<br><br>
+如果 Chrome 已经用 <code>--remote-debugging-port=9222</code> 在运行，可以跳过这一步。`,
+
+    popupAlbumsTitle: '相册从哪里来？',
+    popupAlbumsBody: `相册通过 <b>Chrome 从 Google 相册</b> 获取，不是来自 Pixel 或本地文件。<br><br>
+点击“加载”时，程序会请 Chrome 用 Google 相册网站内部的同一套 API 获取相册列表。<br><br>
+<b>条件：</b><br>
+• Chrome 已连接（CDP 徽章为绿色）<br>
+• 已打开并登录 Google 相册标签页<br><br>
+<b>注意：</b> 这一步不需要 Pixel——Pixel 只用在“移到回收站并重新上传”，以便以零配额重新上传。`,
+
+    albumsLoaded: (n) => `已加载 ${n} 个相册。`,
+    albumsError: (e) => `相册错误：${e}`,
+    albumsFailed: (e) => `无法加载相册：${e}`,
+    chromeLaunched: (dir) => `已启动 Chrome。配置文件：${dir}`,
+    chromeFailed: (e) => `Chrome 启动失败：${e}`,
+    profileDeleted: (p) => `已删除配置文件：${p}`,
+    profileDeleteFailed: (e) => `删除失败：${e}`,
+    manifestReset: '清单已重置。',
+    confirmReset: '要删除 manifest.json 并重置所有步骤状态吗？\n\n已下载的文件不会被删除。',
+    confirmDeleteProfile: (label, dir) => `要删除 Chrome 配置文件${label}吗？\n${dir}\n\n请先关闭 Chrome。`,
+    gotIt: '知道了',
+    lblConcurrency: '并行流数：',
+    btnStop: '停止',
+    btnStopping: '正在停止…',
+    viewerEmpty: '没有项目',
+    viewerNoMatches: '没有匹配结果',
+    refreshTitle: '刷新状态',
+    badgeCdpTitle: '点击了解 CDP',
+    badgeAdbTitle: '点击了解 ADB',
+  },
+
+  ja_JP: {
+    appTitle: 'Google Photos Quota Reclaim',
+    launchChrome: 'Chrome を起動',
+    deleteProfile: 'プロファイルを削除',
+    reset: 'リセット',
+    resetTooltip: 'manifest.json を削除し、すべてのステップ状態をリセットします。ダウンロード済みファイルは削除されません。',
+
+    albums: 'アルバム',
+    albumsEmpty: 'アルバムは Pixel からではなく、<b>Chrome 内の Google フォト</b> から読み込みます。<br><br>Chrome を接続して（CDP バッジが緑）、「読み込み」を押してください。',
+    albumsNone: 'この Google アカウントにアルバムはありません。<br><small>アルバムは Chrome 内の Google フォトから取得します。</small>',
+    load: '読み込み',
+    reload: '再読み込み',
+    all: 'すべて選択',
+    none: '解除',
+    selectedCount: (n) => `${n} 件選択中`,
+    workDirLabel: (dir) => `作業フォルダ：${dir}`,
+    downloadsLabel: (n) => `ダウンロード：${n} ファイル`,
+
+    manifestStats: 'マニフェスト統計',
+    statTotal: '合計',
+    statQuota: '容量を消費',
+    statDownloaded: 'ダウンロード済み',
+    statEnriched: '補完済み（dedupKey）',
+    statAlbumsSaved: 'アルバム保存済み',
+    statTrashed: '削除 + 転送済み',
+    statVerified: '確認済み',
+    statRestored: 'アルバム復元済み',
+
+    pipeline: '手順',
+
+    step1Name: 'アルバムを選択',
+    step1Desc: 'サイドバーで処理するアルバムを選ぶ',
+    step1Pending: 'アルバム未選択',
+    step1Ready: (n) => `${n} 件のアルバムを選択中`,
+    step1ScanAll: 'ライブラリ全体をスキャン',
+
+    step2Name: 'スキャンと準備',
+    step2Desc: '容量消費アイテムを検出 · dedupKey を取得 · アルバム所属を保存 · アーカイブ写真を検出',
+    step2Pending1: 'アルバムを選ぶか、「ライブラリ全体をスキャン」を有効にしてください',
+    step2Pending2: 'スキャンできます',
+    step2Done: (n) => `容量消費アイテム ${n} 件を検出`,
+    btnScan: 'スキャン',
+    btnViewScanned: '表示',
+    chkScanAll: 'ライブラリ全体をスキャン（アルバム選択を無視）',
+
+    step3Name: 'ダウンロードを照合',
+    step3Desc: './downloads/ のファイルをマニフェスト項目に紐づける',
+    step3Note: '写真ファイルを <b>downloads/</b> フォルダに置いてください。メタデータ（日付、GPS）を残す場合は、先に <a href="https://github.com/Xentraxx/GooglePhotosTakeoutHelper_Neo" target="_blank" style="color:var(--accent)">GooglePhotosTakeoutHelper Neo</a> で処理してください。',
+    step3Pending1: '先にスキャンしてください',
+    step3Pending2: './downloads/ にファイルを置いてから照合',
+    step3Done: (n, total) => `${n}/${total} ファイルを照合済み`,
+    btnMatch: '照合',
+    btnViewUnmatched: '表示',
+
+    viewerScannedTitle: 'スキャン済みの容量消費アイテム',
+    viewerUnmatchedTitle: '未照合（ローカルファイルなし）',
+    viewerSearch: '検索…',
+    viewerOriginalQuality: '元の画質',
+    viewerStorageSaver: 'ストレージ節約',
+    viewerNoAlbum: 'アルバムなし',
+    viewerArchived: 'アーカイブ済み',
+    viewerClose: '閉じる',
+    viewerCountAll: (n) => `${n} 件`,
+    viewerCountFiltered: (n, total) => `${n} / ${total}`,
+
+    step4Name: 'ゴミ箱へ移動して再アップロード',
+    step4Desc: 'クラウドから削除 · Pixel に転送 · ',
+    step4Irreversible: '取り消し不可',
+    step4Pending1: '先にダウンロードを照合してください',
+    step4Pending2: (n) => `${n} 件の準備完了`,
+    step4Done: (n) => `Pixel に ${n} 件を転送済み`,
+    chkEmptyTrash: 'ゴミ箱へ移した直後に完全削除する（再アップロード時の自動ゴミ箱入りを防ぐ）',
+    btnTrash: '削除して転送',
+
+    step5Name: '確認',
+    step5Desc: 'Pixel のバックアップを 1〜4 時間待ってから、容量が解放されたことを確認',
+    step5Pending1: '先に削除と再アップロードを完了してください',
+    step5Pending2: 'Pixel のバックアップを待ってから確認',
+    step5Done: (n, total) => `${n}/${total} 件を確認済み`,
+    btnVerify: '確認',
+    btnViewUnverified: '表示',
+    viewerUnverifiedTitle: '未確認（バックアップ待ち）',
+
+    step6Name: 'アルバムとアーカイブを復元',
+    step6Desc: '写真を元のアルバムに戻す · 以前アーカイブされていた写真を再アーカイブ',
+    step6Pending1: '先に確認してください',
+    step6Pending2: (n) => `${n} 件の準備完了`,
+    step6Done: (n) => `${n} 件を復元済み`,
+    btnRestore: '復元',
+
+    step7Name: 'Pixel をクリーンアップ',
+    step7Desc: '転送済みファイルを /sdcard/DCIM/Camera/ から削除',
+    step7Pending: '先に削除と再アップロードを完了してください',
+    step7Ready: (n) => `Pixel 上に ${n} 件の削除待ちファイル`,
+    btnCleanup: 'クリーンアップ',
+
+    step8Name: '作者に感謝を伝える',
+    step8Desc: 'このツールは Google フォトの容量を無料で解放します。役に立ったら、コーヒー一杯が一番の感謝になります。',
+    btnCoffee: '☕ コーヒーをおごる',
+
+    logTitle: 'ログ',
+    logClear: 'クリア',
+
+    modalTrashTitle: '⚠️ 開始前に Pixel で操作してください',
+    modalTrashBody: (warning) => `Google フォトがアップロード済みファイルを「すでにアップロード済み」と見なさないように、先に：<br><br>
+      <b>1.</b> Pixel で <b>Google フォト</b> を開く<br>
+      <b>2.</b> 右上のアイコンをタップ<br>
+      <b>3.</b> <b>「アカウントなしでフォトを使用」</b> を選ぶ<br><br>
+      終わったら <b>準備完了、開始</b> を押してください。${warning}`,
+    modalTrashEmptyWarning: `<br><div style="margin-top:10px;padding:8px 10px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:6px;font-size:12px;color:var(--error)">⚠️ 「ゴミ箱から完全削除」が有効です。ファイルはゴミ箱へ移した直後に完全削除されます。</div>`,
+    modalTrashCancel: 'キャンセル',
+    modalTrashConfirm: '準備完了、開始',
+
+    modalAfterTrashTitle: '✓ Pixel へ転送済み — アカウントを戻してください',
+    modalAfterTrashBody: `ファイルは Pixel に転送されました。バックアップを始めるため、Google アカウントを戻してください：<br><br>
+      <b>1.</b> Pixel で <b>Google フォト</b> を開く<br>
+      <b>2.</b> <b>「ログイン」</b> をタップ<br>
+      <b>3.</b> 自分の <b>Google アカウント</b> でログイン<br><br>
+      <div style="padding:8px 10px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:6px;font-size:12px;color:var(--warn)">⚠️ アカウントがすでに選ばれている場合、Google はすぐ同期の確認を出すことがあります。前の手順で使った同じアカウントに切り替え、同期に同意してください。</div><br>
+      Google フォトは新しいファイルを検出し、無料でクラウドにアップロードします。<br><br>
+      1〜4 時間待ってから、手順 5 の <b>確認</b> を押してください。`,
+    modalAfterTrashClose: '了解、閉じる',
+
+    modalAfterCleanupTitle: '✓ フォルダをクリーンアップしました',
+    modalAfterCleanupBody: `ファイルは ADB で削除済みですが、Pixel 上の <b>ファイル</b> や <b>Google フォト</b> にはまだ表示されることがあります。これは正常です。<br><br>
+      Android のメディア索引はすぐには更新されません。実体はすでにないため、アプリから削除しようとすると <i>「削除に失敗しました」</i> になります。<br><br>
+      <b>対処：</b> Pixel を再起動してください。再起動後に索引が再スキャンされ、「ゴースト」は消えます。`,
+    modalAfterCleanupClose: '了解',
+
+    popupCdpTitle: 'CDP — Chrome DevTools Protocol',
+    popupCdpBody: `<b>CDP</b> は Chrome 内蔵のデバッグ API です。このアプリは開いている Google フォトのタブと通信し、認証トークンの読み取り、API 呼び出し、アカウント切り替えを行います。<br><br>
+<b>緑のバッジ：</b> Chrome が <code>--remote-debugging-port=9222</code> で起動し、Google フォトのタブが開いています。<br><br>
+ライブラリ操作（スキャン、補完、削除、確認）には有効な CDP 接続が必要です。`,
+
+    adbNotFound: `adb/ フォルダに ADB バイナリが見つかりません。https://developer.android.com/tools/releases/platform-tools から Platform Tools をダウンロードし、adb.exe を adb/ フォルダに置いてください。`,
+
+    popupAdbTitle: 'ADB — Android Debug Bridge',
+    popupAdbBody: `<b>ADB</b> は USB 経由で Android 端末と通信するツールです。このアプリは Pixel 1 のカメラフォルダへ写真を転送するために使います。<br><br>
+Pixel 上の Google フォトがその後バックアップします。Pixel 1 には永久の例外があり、アップロードは <b>容量を消費しません</b>。<br><br>
+<b>設定：</b> <a href="https://developer.android.com/tools/releases/platform-tools" target="_blank" style="color:var(--accent)">Platform Tools</a> をダウンロードし、<code>adb.exe</code> をプロジェクト横の <code>adb/</code> フォルダに置いてください。<br><br>
+<b>緑のバッジ：</b> Pixel 1 が USB 接続され、開発者向けオプションで USB デバッグが許可され、ADB が端末を認識しています。<br><br>
+ADB が必要なのは <b>ゴミ箱へ移動して再アップロード</b> と <b>Pixel をクリーンアップ</b> だけです。`,
+
+    popupChromeTitle: 'なぜ Chrome を起動するのか？',
+    popupChromeBody: `Google フォト API への呼び出しは、このアプリから直接ではなく、ブラウザ経由で行われます。Google の API には <b>セッション Cookie</b> が必要で、それは Chrome 内にしか存在しないためです。<br><br>
+<b>Chrome を起動</b> を押すと、専用ウィンドウが開き、次の状態になります：<br>
+• リモートデバッグ有効（ポート 9222）<br>
+• 隔離された一時プロファイル<br><br>
+そのウィンドウで Google フォトにログインしてください。接続されると CDP バッジが緑になります。<br><br>
+すでに <code>--remote-debugging-port=9222</code> で Chrome が動いている場合は、この手順を飛ばせます。`,
+
+    popupAlbumsTitle: 'アルバムはどこから来るのか？',
+    popupAlbumsBody: `アルバムは Pixel やローカルファイルからではなく、<b>Chrome 経由で Google フォト</b> から取得します。<br><br>
+「読み込み」を押すと、アプリは Chrome に、Google フォトサイト内部と同じ API でアルバム一覧を取得するよう依頼します。<br><br>
+<b>必要条件：</b><br>
+• Chrome が接続済み（CDP バッジが緑）<br>
+• Google フォトのタブが開いていてログイン済み<br><br>
+<b>注意：</b> この手順に Pixel は不要です。Pixel は「ゴミ箱へ移動して再アップロード」でのみ使い、容量ゼロで再アップロードします。`,
+
+    albumsLoaded: (n) => `アルバム ${n} 件を読み込みました。`,
+    albumsError: (e) => `アルバムエラー：${e}`,
+    albumsFailed: (e) => `アルバムの読み込みに失敗：${e}`,
+    chromeLaunched: (dir) => `Chrome を起動しました。プロファイル：${dir}`,
+    chromeFailed: (e) => `Chrome の起動に失敗：${e}`,
+    profileDeleted: (p) => `プロファイルを削除しました：${p}`,
+    profileDeleteFailed: (e) => `削除に失敗：${e}`,
+    manifestReset: 'マニフェストをリセットしました。',
+    confirmReset: 'manifest.json を削除し、すべてのステップ状態をリセットしますか？\n\nダウンロード済みファイルは削除されません。',
+    confirmDeleteProfile: (label, dir) => `Chrome プロファイル${label}を削除しますか？\n${dir}\n\nChrome を閉じてから実行してください。`,
+    gotIt: '了解',
+    lblConcurrency: '並列ストリーム：',
+    btnStop: '停止',
+    btnStopping: '停止中…',
+    viewerEmpty: '項目がありません',
+    viewerNoMatches: '一致する項目がありません',
+    refreshTitle: '状態を更新',
+    badgeCdpTitle: 'クリックして CDP について見る',
+    badgeAdbTitle: 'クリックして ADB について見る',
   }
 };
+
+const LANG_CODES = ['en', 'ru', 'zh_TW', 'zh_CN', 'ja_JP'];
+const HTML_LANG = { en: 'en', ru: 'ru', zh_TW: 'zh-Hant', zh_CN: 'zh-Hans', ja_JP: 'ja' };
+if (!LANGS[lang]) lang = 'en';
 
 let POPUPS = {};
 
 function t(key, ...args) {
-  const val = LANGS[lang][key];
+  const val = LANGS[lang]?.[key] ?? LANGS.en[key];
   if (typeof val === 'function') return val(...args);
   return val ?? key;
 }
@@ -773,9 +1338,11 @@ function buildPopups() {
 }
 
 function applyLang() {
-  document.documentElement.lang = lang;
-  document.getElementById('btn-lang-en').className = `small${lang === 'en' ? ' primary' : ''}`;
-  document.getElementById('btn-lang-ru').className = `small${lang === 'ru' ? ' primary' : ''}`;
+  document.documentElement.lang = HTML_LANG[lang] || 'en';
+  for (const code of LANG_CODES) {
+    const btn = document.getElementById(`btn-lang-${code}`);
+    if (btn) btn.className = `small${lang === code ? ' primary' : ''}`;
+  }
 
   setText('app-title', t('appTitle'));
   setText('btn-reset', t('reset'));
@@ -843,6 +1410,15 @@ function applyLang() {
   setText('btn-cleanup-pixel', t('btnCleanup'));
 
   setText('chk-empty-trash-label', t('chkEmptyTrash'));
+  setText('lbl-concurrency', t('lblConcurrency'));
+  const stopBtn = document.getElementById('btn-stop-trash');
+  if (stopBtn && !stopBtn.disabled) stopBtn.textContent = t('btnStop');
+  const refreshBtn = document.getElementById('btn-refresh-status');
+  if (refreshBtn) refreshBtn.title = t('refreshTitle');
+  const cdpBadge = document.getElementById('cdpBadge');
+  if (cdpBadge) cdpBadge.title = t('badgeCdpTitle');
+  const adbBadge = document.getElementById('adbBadge');
+  if (adbBadge) adbBadge.title = t('badgeAdbTitle');
   setText('log-title', t('logTitle'));
   setText('btn-clear-log', t('logClear'));
 
@@ -1094,7 +1670,7 @@ function updateButtonStates() {
   if (stopBtn) {
     stopBtn.style.display = currentOp === 'trash-reupload' ? 'inline-block' : 'none';
     stopBtn.disabled = false;
-    stopBtn.textContent = 'Stop';
+    stopBtn.textContent = t('btnStop');
   }
 
   if (!busy) {
@@ -1230,7 +1806,7 @@ async function runTrashReupload() {
 
 async function stopTrashReupload() {
   const btn = document.getElementById('btn-stop-trash');
-  if (btn) { btn.disabled = true; btn.textContent = 'Stopping…'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('btnStopping'); }
   await post('/api/stop');
 }
 
@@ -1366,7 +1942,7 @@ function renderViewerItems(items, query) {
     </div>`;
   }).join('');
 
-  document.getElementById('viewer-list').innerHTML = html || `<div class="empty">${escHtml(query ? 'No matches' : 'No items')}</div>`;
+  document.getElementById('viewer-list').innerHTML = html || `<div class="empty">${escHtml(query ? t('viewerNoMatches') : t('viewerEmpty'))}</div>`;
   document.getElementById('viewer-count').textContent = query
     ? t('viewerCountFiltered', filtered.length, items.length)
     : t('viewerCountAll', items.length);
