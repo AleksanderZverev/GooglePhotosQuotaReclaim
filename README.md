@@ -13,7 +13,7 @@ Reclaim Google Photos storage quota. Finds quota-consuming photos, downloads the
 - **Parallel processing** — configurable number of concurrent streams for faster trash and re-upload
 - **Metadata preservation** — optional integration with [GooglePhotosTakeoutHelper Neo](https://github.com/Xentraxx/GooglePhotosTakeoutHelper_Neo) to restore original dates and GPS from Takeout sidecars before re-uploading
 - **Intuitive GUI** — step-by-step interface guides you through the entire process with real-time progress
-- **English and Russian interface** — switch languages with one click
+- **English, Russian, Traditional Chinese, Simplified Chinese, and Japanese interface** — switch languages with one click
 
 ## Screenshots
 
