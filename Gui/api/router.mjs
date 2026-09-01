@@ -3,7 +3,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { getCdpTabs, connectCdp, tryGetAccountEmail } from '../lib/cdp.mjs';
-import { getTokens, listAllAlbums } from '../lib/rpc.mjs';
+import { getTokens, listAllAlbums, clearAlbumsCache } from '../lib/rpc.mjs';
 import { readManifest, manifestStats, writeManifest } from '../lib/manifest.mjs';
 import { broadcast, log, currentOp, sseClients, requestStop } from '../lib/sse.mjs';
 import { launchChrome, deleteProfile } from '../lib/chrome.mjs';
@@ -54,6 +54,7 @@ function handleSseConnection(req, res) {
   });
   res.write('retry: 3000\n\n');
   res.write(`data: ${JSON.stringify({ type: 'stats', stats: manifestStats(readManifest()) })}\n\n`);
+  clearAlbumsCache(); // page refresh → fresh album data on next fetch
   sseClients.add(res);
   req.on('close', () => sseClients.delete(res));
 }
@@ -103,7 +104,22 @@ async function handleAlbumsRequest(res) {
     const tokens = await getTokens(cdp);
     const albums = await listAllAlbums(cdp, tokens);
     cdp.close();
-    return json(res, { albums });
+
+    // Compute quota item counts per album from manifest
+    const manifest = readManifest();
+    const albumQuotaCounts = new Map();
+    for (const item of manifest) {
+      if (!item.consumesQuota) continue;
+      for (const a of item.albums || []) {
+        albumQuotaCounts.set(a.albumId, (albumQuotaCounts.get(a.albumId) || 0) + 1);
+      }
+    }
+    const albumsWithQuota = albums.map(a => ({
+      ...a,
+      quotaCount: albumQuotaCounts.get(a.albumId) || 0,
+    }));
+
+    return json(res, { albums: albumsWithQuota });
   } catch (err) {
     return json(res, { error: err.message }, 500);
   }

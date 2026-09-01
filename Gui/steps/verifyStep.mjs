@@ -4,22 +4,28 @@ import { readManifest, writeManifest } from '../lib/manifest.mjs';
 import { log, opStart, opEnd } from '../lib/sse.mjs';
 
 function buildFilenameToItemMap(items) {
-  return new Map(items.map(i => [(i.pushedAs || i.filename).toLowerCase(), i]));
+  const map = new Map();
+  for (const i of items) {
+    const name = (i.pushedAs || i.filename).toLowerCase();
+    map.set(name, i);
+    // Also index without extension as fallback
+    const noExt = name.replace(/\.[^.]+$/, '');
+    if (noExt !== name && !map.has(noExt)) map.set(noExt, i);
+  }
+  return map;
 }
 
-function checkQuotaInfoAgainstItem(qi, nameMap) {
-  const fname = (qi?.[2] ?? '').toLowerCase();
-  const item = nameMap.get(fname);
-  if (!item || item.verified !== undefined) return;
+function applyQuotaInfo(item, qi, newMediaKey) {
+  if (item.verified !== undefined) return null;
   if (qi?.[30]?.[0] !== 1 && qi?.[14] === 2) {
     item.verified = true;
-    item.newMediaKey = qi?.[0];
+    item.newMediaKey = newMediaKey ?? qi?.[0];
     item.verifiedAt = new Date().toISOString();
     return item.mediaKey;
-  } else {
-    item.verified = false;
-    item.verifyNote = qi?.[30]?.[0] === 1 ? 'Still takes space' : 'Not original quality';
   }
+  item.verified = false;
+  item.verifyNote = qi?.[30]?.[0] === 1 ? 'Still takes space' : 'Not original quality';
+  return null;
 }
 
 export async function verifyStep() {
@@ -37,6 +43,10 @@ export async function verifyStep() {
     log(`Verifying ${items.length} items...`);
     const tokens = await getTokens(cdp);
     const nameMap = buildFilenameToItemMap(items);
+    // dedupKey → item map for fast candidate lookup on each lcxiM page
+    const dedupKeyMap = new Map(items.filter(i => i.dedupKey).map(i => [i.dedupKey, i]));
+    const fallbackItems = items.filter(i => !i.dedupKey); // items without dedupKey (rare)
+
     const verified = new Set();
     let pageToken = null, page = 0;
     do {
@@ -44,15 +54,47 @@ export async function verifyStep() {
       const pageItems = payload?.[0] ?? [];
       pageToken = payload?.[1] ?? null;
       page++;
-      const pageKeys = pageItems.map(i => i?.[0]).filter(Boolean);
-      if (pageKeys.length > 0) {
-        const qis = await batchQuotaInfo(cdp, tokens, pageKeys);
+
+      // Build mediaKey→rawItem map for this page (used for dedupKey reverse-lookup)
+      const pageMediaMap = new Map(pageItems.filter(i => i?.[0]).map(i => [i[0], i]));
+
+      // Find candidates by dedupKey (fast path — avoids checking all 500 items per page)
+      const dedupCandidates = dedupKeyMap.size > 0
+        ? pageItems.filter(i => i?.[3] && dedupKeyMap.has(i[3]))
+        : [];
+
+      let candidateKeys;
+      if (dedupCandidates.length > 0) {
+        candidateKeys = dedupCandidates.map(i => i?.[0]).filter(Boolean);
+      } else if (fallbackItems.length > 0) {
+        // No dedupKey matches on this page but some items have no dedupKey → check all
+        candidateKeys = pageItems.map(i => i?.[0]).filter(Boolean);
+      } else {
+        candidateKeys = []; // all items have dedupKeys, none matched this page — skip
+      }
+
+      if (candidateKeys.length > 0) {
+        const qis = await batchQuotaInfo(cdp, tokens, candidateKeys);
         for (const qi of qis) {
-          const verifiedKey = checkQuotaInfoAgainstItem(qi, nameMap);
-          if (verifiedKey) verified.add(verifiedKey);
+          const newMediaKey = qi?.[0];
+          // Try filename match first (works in all cases)
+          const fname = (qi?.[2] ?? '').toLowerCase();
+          const noExt = fname.replace(/\.[^.]+$/, '');
+          let item = nameMap.get(fname) || nameMap.get(noExt);
+
+          // Fallback: match via dedupKey from the original lcxiM item
+          if (!item && dedupKeyMap.size > 0) {
+            const rawItem = pageMediaMap.get(newMediaKey);
+            if (rawItem?.[3]) item = dedupKeyMap.get(rawItem[3]);
+          }
+
+          if (!item) continue;
+          const key = applyQuotaInfo(item, qi, newMediaKey);
+          if (key) verified.add(key);
         }
       }
-      log(`Page ${page} (${pageItems.length} items): ${verified.size}/${items.length} verified`);
+
+      log(`Page ${page} (${pageItems.length} items, ${candidateKeys.length} checked): ${verified.size}/${items.length} verified`);
       if (verified.size >= items.length) break;
     } while (pageToken);
 

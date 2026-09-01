@@ -1,3 +1,12 @@
+// Module-level caches — cleared on each new SSE connection (= page refresh)
+const _albumListCache = { value: null };
+const _albumContentCache = new Map(); // albumId → items[]
+
+export function clearAlbumsCache() {
+  _albumListCache.value = null;
+  _albumContentCache.clear();
+}
+
 export async function getTokens(cdp) {
   const t = await cdp.evaluate(`
     (() => {
@@ -126,7 +135,15 @@ export async function archivePhoto(cdp, tokens, dedupKey) {
   if (r.status !== 200 || r.hasError) throw new Error(`w7TP3c status=${r.status} hasError=${r.hasError}`);
 }
 
+export async function enumerateAlbumCached(cdp, tokens, albumId) {
+  if (_albumContentCache.has(albumId)) return _albumContentCache.get(albumId);
+  const items = await enumerateAll(cdp, tokens, { albumId });
+  _albumContentCache.set(albumId, items);
+  return items;
+}
+
 export async function listAllAlbums(cdp, tokens) {
+  if (_albumListCache.value) return _albumListCache.value;
   const accountMatch = tokens.path.match(/^(\/u\/\d+\/)/);
   const accountPrefix = accountMatch ? accountMatch[1] : '/';
   const albumsUrl = `https://photos.google.com${accountPrefix}albums`;
@@ -170,5 +187,6 @@ export async function listAllAlbums(cdp, tokens) {
     const count = typeof info?.[3] === 'number' ? info[3] : null;
     albums.push({ albumId, title, count });
   }
+  _albumListCache.value = albums;
   return albums;
 }

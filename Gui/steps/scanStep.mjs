@@ -1,5 +1,5 @@
 import { connectCdp } from '../lib/cdp.mjs';
-import { getTokens, callRpc, enumerateAll, batchQuotaInfo, listAllAlbums } from '../lib/rpc.mjs';
+import { getTokens, callRpc, enumerateAll, enumerateAlbumCached, batchQuotaInfo, listAllAlbums, clearAlbumsCache } from '../lib/rpc.mjs';
 import { readManifest, writeManifest } from '../lib/manifest.mjs';
 import { log, opStart, opEnd } from '../lib/sse.mjs';
 
@@ -115,7 +115,7 @@ async function saveAlbumMemberships(cdp, manifest, albumIds) {
   const keyToItem = new Map(manifest.map(i => [i.dedupKey, i]));
   let found = 0;
   for (const { albumId, title } of albumsToCheck) {
-    const albumItems = await enumerateAll(cdp, tokens, { albumId });
+    const albumItems = await enumerateAlbumCached(cdp, tokens, albumId);
     for (const rawItem of albumItems) {
       const key = rawItem?.[3];
       if (!key || !targetSet.has(key)) continue;
@@ -133,6 +133,7 @@ async function saveAlbumMemberships(cdp, manifest, albumIds) {
 }
 
 export async function scanStep({ albumIds } = {}) {
+  clearAlbumsCache(); // fresh fetch on every explicit scan
   opStart('scan');
   const cdp = await connectCdp();
   try {
@@ -212,6 +213,7 @@ async function enrichDedupKeys(cdp, tokens, manifest) {
 }
 
 export async function scanFullStep({ albumIds } = {}) {
+  clearAlbumsCache(); // fresh fetch on every explicit scan
   const scanAll = !albumIds?.length;
   opStart('scan-full');
   const cdp = await connectCdp();
