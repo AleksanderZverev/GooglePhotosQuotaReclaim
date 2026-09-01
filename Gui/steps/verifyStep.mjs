@@ -16,7 +16,7 @@ function buildFilenameToItemMap(items) {
 }
 
 function applyQuotaInfo(item, qi, newMediaKey) {
-  if (item.verified !== undefined) return null;
+  if (item.verified === true) return null; // already confirmed — skip
   if (qi?.[30]?.[0] !== 1 && qi?.[14] === 2) {
     item.verified = true;
     item.newMediaKey = newMediaKey ?? qi?.[0];
@@ -33,7 +33,9 @@ export async function verifyStep() {
   const cdp = await connectCdp();
   try {
     const manifest = readManifest();
-    const items = manifest.filter(i => i.reuploadComplete && !i.verified);
+    // verified !== true includes both undefined (not yet tried) and false (tried but still
+    // consuming quota) — we want to re-check false items on subsequent runs
+    const items = manifest.filter(i => i.reuploadComplete && i.verified !== true);
     if (!items.length) {
       const msg = 'No items to verify';
       log(msg, 'success');
