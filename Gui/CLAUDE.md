@@ -20,11 +20,12 @@ cd Gui && node server.mjs
 ## Архитектура
 
 ```
-Browser ──POST /api/scan──▶ server.mjs ──cdp.evaluate(fetch(...))──▶ Chrome tab
-           SSE /api/events ◀── broadcast('log'/'stats'/'opEnd') ◀──────────────
+Browser ──POST /api/scan──▶ api/router.mjs ──cdp.evaluate(fetch(...))──▶ Chrome tab
+           SSE /api/events ◀── broadcast('log'/'stats'/'opEnd') ◀────────────────
 ```
 
-Сервер держит одно SSE-соединение на вкладку браузера. CDP-сессия создаётся свежей на каждую операцию.
+`server.mjs` — тонкая обёртка: `http.createServer → handle()`. Вся логика роутинга и операций в `api/router.mjs`.
+CDP-сессия создаётся свежей на каждую операцию (в каждом `step*.mjs` есть `connectCdp()` / `finally { cdp.close() }`).
 
 `manifest.json` и `downloads/` лежат в **родительской** папке (`WORK_DIR = path.dirname(__dirname)`). При редактировании путей не путай `__dirname` (папка `Gui/`) с `WORK_DIR` (корень проекта).
 
@@ -42,19 +43,33 @@ verify     →  + verified, newMediaKey, verifiedAt
 restore    →  + albumsRestored=true
 ```
 
-## Структура server.mjs
+## Файлы steps/
 
-| Блок | Строки | Содержание |
-|------|--------|------------|
-| Constants | 1–20 | PORT, CDP_URL, WORK_DIR, CHROME_* |
-| SSE | ~25–45 | `broadcast`, `log`, `opStart`, `opEnd` |
-| Manifest | ~50–70 | `readManifest`, `writeManifest`, `manifestStats` |
-| CDP | ~75–120 | `CdpSession`, `connectCdp`, `getCdpTabs` |
-| RPC | ~125–200 | `getTokens`, `callRpc`, `enumerateAll`, `batchQuotaInfo`, `listAllAlbums` |
-| ADB | ~205–220 | `adb`, `checkAdb`, `safeName` |
-| Operations | ~225–680 | `opScan` … `opSwitchAccount` |
-| Chrome mgmt | ~685–720 | `findChrome`, `launchChrome`, `deleteProfile` |
-| HTTP server | ~725–end | `json`, `parseBody`, `handle`, `server.listen` |
+| Файл | Операция API | Шаг |
+|------|-------------|-----|
+| `scanStep.mjs` | `/api/scan`, `/api/scan-full` | 2 — scan+enrich+saveAlbumMemberships |
+| `enrichStep.mjs` | `/api/enrich` | 3 — standalone dedupKey enrich |
+| `miscSteps.mjs` | `/api/match`, `/api/cleanup-pixel`, `/api/switch-account` | разные |
+| `trashReuploadStep.mjs` | `/api/trash-reupload` | 4 — необратимый шаг |
+| `verifyStep.mjs` | `/api/verify` | 5 — проверка quota-free |
+| `albumsStep.mjs` | `/api/restore-albums` | 6 — restore + re-archive |
+
+## i18n
+
+Все переводы — inline-объект `LANGS` в `index.html` (строки ~405–1305). Нет отдельных файлов.
+- Функция: `t(key, ...args)` — ищет в `LANGS[lang]`, fallback на `LANGS.en`; значение может быть функцией `(n) => \`...\``
+- Смена языка: `setLang(l)` → `applyLang()` + `updateStepStats()` + `updateButtonStates()`
+- Локали: `en`, `ru`, `zh_TW`, `zh_CN`, `ja_JP`
+- Переключатель — custom dropdown (`#langDropdown`, `.lang-option[data-lang]`)
+
+## Кеш альбомов (lib/rpc.mjs)
+
+- `listAllAlbums` кешируется в `_albumListCache` — повторные вызовы не делают HTTP-запрос
+- `enumerateAlbumCached(cdp, tokens, albumId)` — кешированный `enumerateAll` для альбома, результаты в `_albumContentCache`
+- `clearAlbumsCache()` — очищает оба кеша
+  - вызывается в `handleSseConnection` (= при обновлении страницы)
+  - вызывается в начале `scanStep` / `scanFullStep` (чтобы повторный скан брал свежие данные)
+- Кеш живёт в памяти процесса, не персистируется
 
 ## Паттерны для изменений
 
