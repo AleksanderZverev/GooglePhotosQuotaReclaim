@@ -7,6 +7,7 @@ Reclaim Google Photos storage quota. Finds quota-consuming photos, downloads the
 ## Features
 
 - **Album preservation** — saves album memberships before deletion and restores them after re-upload
+- **Shared album preservation** — saves shared album memberships before deletion and restores them after re-upload
 - **Archive preservation** — detects archived photos and re-archives them automatically after re-upload
 - **Automatic transfer to Pixel** — pushes files directly to the device over USB using ADB, no manual copying required
 - **Incremental & resumable** — every step is idempotent; you can stop and continue at any point without losing progress
