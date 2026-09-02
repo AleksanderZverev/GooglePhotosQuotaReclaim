@@ -28,6 +28,7 @@ async function enumerateLibrary(cdp, tokens) {
 async function enumerateSelectedAlbums(cdp, tokens, albumIds) {
   const allAlbums = await listAllAlbums(cdp, tokens);
   const albumTitleMap = new Map(allAlbums.map(a => [a.albumId, a.title]));
+  const albumSharedMap = new Map(allAlbums.filter(a => a.isShared).map(a => [a.albumId, true]));
   const albumToKeys = new Map();
   const albumToForeignKeys = new Map(); // albumId → Set of keys where item has [20] (uploaded by someone else)
   const rawItems = [];
@@ -57,7 +58,7 @@ async function enumerateSelectedAlbums(cdp, tokens, albumIds) {
     if (i?.[3]) archivedKeys.add(i[3]);
   }
 
-  return { rawItems, albumToKeys, albumToForeignKeys, albumTitleMap, archivedKeys, archiveScanned: true };
+  return { rawItems, albumToKeys, albumToForeignKeys, albumSharedMap, albumTitleMap, archivedKeys, archiveScanned: true };
 }
 
 function deduplicateItems(rawItems) {
@@ -74,7 +75,7 @@ function buildDedupMap(uniqueItems) {
   return new Map(uniqueItems.filter(i => i?.[0] && i?.[3]).map(i => [i[0], i[3]]));
 }
 
-function buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap, archivedKeys = new Set(), archiveScanned = false, albumToForeignKeys = new Map()) {
+function buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap, archivedKeys = new Set(), archiveScanned = false, albumToForeignKeys = new Map(), albumSharedMap = new Map()) {
   const newEntries = [];
   for (const qi of quotaInfos) {
     const mediaKey = qi?.[0];
@@ -87,7 +88,12 @@ function buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKe
     for (const [albumId, keys] of albumToKeys) {
       if (!keys.has(key)) continue;
       const isOtherOwner = albumToForeignKeys.get(albumId)?.has(key) ?? false;
-      itemAlbums.push({ albumId, albumTitle: albumTitleMap.get(albumId) || '', ...(isOtherOwner ? { isOtherOwner: true } : {}) });
+      const isSharedAlbum = albumSharedMap.get(albumId) ?? false;
+      itemAlbums.push({
+        albumId, albumTitle: albumTitleMap.get(albumId) || '',
+        ...(isSharedAlbum ? { isSharedAlbum: true } : {}),
+        ...(isOtherOwner ? { isOtherOwner: true } : {}),
+      });
     }
     const isArchived = archivedKeys.has(mediaKey) || (dedupKey && archivedKeys.has(dedupKey));
     newEntries.push({
@@ -120,7 +126,7 @@ async function saveAlbumMemberships(cdp, manifest, albumIds) {
   log(`Checking ${albumsToCheck.length} album${albumsToCheck.length !== 1 ? 's' : ''} for memberships...`);
   const keyToItem = new Map(manifest.map(i => [i.dedupKey, i]));
   let found = 0;
-  for (const { albumId, title } of albumsToCheck) {
+  for (const { albumId, title, isShared } of albumsToCheck) {
     const albumItems = await enumerateAlbumCached(cdp, tokens, albumId);
     for (const rawItem of albumItems) {
       const key = rawItem?.[3];
@@ -130,7 +136,11 @@ async function saveAlbumMemberships(cdp, manifest, albumIds) {
       if (!item.albums) item.albums = [];
       if (!item.albums.find(a => a.albumId === albumId)) {
         const isOtherOwner = rawItem?.[7]?.some(p => p?.[0] === 20) ?? false;
-        item.albums.push({ albumId, albumTitle: title, ...(isOtherOwner ? { isOtherOwner: true } : {}) });
+        item.albums.push({
+          albumId, albumTitle: title,
+          ...(isShared ? { isSharedAlbum: true } : {}),
+          ...(isOtherOwner ? { isOtherOwner: true } : {}),
+        });
         found++;
       }
     }
@@ -147,7 +157,7 @@ export async function scanStep({ albumIds } = {}) {
     const tokens = await getTokens(cdp);
     log(`Scanning... (account: ${tokens.path})`);
 
-    const { rawItems, albumToKeys, albumToForeignKeys = new Map(), albumTitleMap, archivedKeys = new Set(), archiveScanned = false } = albumIds?.length
+    const { rawItems, albumToKeys, albumToForeignKeys = new Map(), albumSharedMap = new Map(), albumTitleMap, archivedKeys = new Set(), archiveScanned = false } = albumIds?.length
       ? await enumerateSelectedAlbums(cdp, tokens, albumIds)
       : await enumerateLibrary(cdp, tokens);
 
@@ -159,7 +169,7 @@ export async function scanStep({ albumIds } = {}) {
 
     const manifest = readManifest();
     const existingKeys = new Set(manifest.map(m => m.dedupKey || m.mediaKey));
-    const newEntries = buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap, archivedKeys, archiveScanned, albumToForeignKeys);
+    const newEntries = buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap, archivedKeys, archiveScanned, albumToForeignKeys, albumSharedMap);
     manifest.push(...newEntries);
 
     if (archivedKeys.size) {
@@ -228,7 +238,7 @@ export async function scanFullStep({ albumIds } = {}) {
     const tokens = await getTokens(cdp);
     log(`Scanning... (account: ${tokens.path})`);
 
-    const { rawItems, albumToKeys, albumToForeignKeys = new Map(), albumTitleMap, archivedKeys = new Set(), archiveScanned = false } = scanAll
+    const { rawItems, albumToKeys, albumToForeignKeys = new Map(), albumSharedMap = new Map(), albumTitleMap, archivedKeys = new Set(), archiveScanned = false } = scanAll
       ? await enumerateLibrary(cdp, tokens)
       : await enumerateSelectedAlbums(cdp, tokens, albumIds);
 
@@ -241,7 +251,7 @@ export async function scanFullStep({ albumIds } = {}) {
 
     const manifest = readManifest();
     const existingKeys = new Set(manifest.map(m => m.dedupKey || m.mediaKey));
-    const newEntries = buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap, archivedKeys, archiveScanned, albumToForeignKeys);
+    const newEntries = buildQuotaManifestEntries(quotaInfos, existingKeys, dedupMap, albumToKeys, albumTitleMap, archivedKeys, archiveScanned, albumToForeignKeys, albumSharedMap);
     manifest.push(...newEntries);
 
     if (archivedKeys.size) {

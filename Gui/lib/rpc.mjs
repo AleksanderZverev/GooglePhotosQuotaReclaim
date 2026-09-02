@@ -185,7 +185,9 @@ export async function listAllAlbums(cdp, tokens) {
     const info = infoObj['72930366'];
     const title = typeof info?.[1] === 'string' ? info[1] : `(untitled ${albumId.slice(-6)})`;
     const count = typeof info?.[3] === 'number' ? info[3] : null;
-    albums.push({ albumId, title, count });
+    // info[0]: 1 = personal album, 4 = shared/collaborative album
+    const isShared = info?.[0] === 4;
+    albums.push({ albumId, title, count, ...(isShared ? { isShared: true } : {}) });
   }
   _albumListCache.value = albums;
   return albums;
