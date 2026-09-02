@@ -48,44 +48,43 @@ export async function verifyStep() {
     // dedupKey → item map for fast candidate lookup on each lcxiM page
     const dedupKeyMap = new Map(items.filter(i => i.dedupKey).map(i => [i.dedupKey, i]));
 
+    // Phase 1: fetch pages sequentially (pageToken dependency), kick off quota checks in parallel.
     const verified = new Set();
+    const pagePromises = [];
     let pageToken = null, page = 0;
     do {
       const payload = await callRpc(cdp, 'lcxiM', [pageToken, null, 500, null, 1, 1], tokens);
       const pageItems = payload?.[0] ?? [];
       pageToken = payload?.[1] ?? null;
       page++;
-
-      // Build mediaKey→rawItem map for this page (used for dedupKey reverse-lookup)
-      const pageMediaMap = new Map(pageItems.filter(i => i?.[0]).map(i => [i[0], i]));
-
-      // After re-upload the dedupKey changes, so filename matching must run on every page.
+      log(`Fetched page ${page} (${pageItems.length} items)`);
       const candidateKeys = pageItems.map(i => i?.[0]).filter(Boolean);
-
       if (candidateKeys.length > 0) {
-        const qis = await batchQuotaInfo(cdp, tokens, candidateKeys);
-        for (const qi of qis) {
-          const newMediaKey = qi?.[0];
-          // Try filename match first (works in all cases)
-          const fname = (qi?.[2] ?? '').toLowerCase();
-          const noExt = fname.replace(/\.[^.]+$/, '');
-          let item = nameMap.get(fname) || nameMap.get(noExt);
-
-          // Fallback: match via dedupKey from the original lcxiM item
-          if (!item && dedupKeyMap.size > 0) {
-            const rawItem = pageMediaMap.get(newMediaKey);
-            if (rawItem?.[3]) item = dedupKeyMap.get(rawItem[3]);
-          }
-
-          if (!item) continue;
-          const key = applyQuotaInfo(item, qi, newMediaKey);
-          if (key) verified.add(key);
-        }
+        const pageMediaMap = new Map(pageItems.filter(i => i?.[0]).map(i => [i[0], i]));
+        // Don't await — run quota checks for all pages concurrently with page fetching.
+        pagePromises.push(batchQuotaInfo(cdp, tokens, candidateKeys).then(qis => ({ qis, pageMediaMap })));
       }
-
-      log(`Page ${page} (${pageItems.length} items, ${candidateKeys.length} checked): ${verified.size}/${items.length} verified`);
-      if (verified.size >= items.length) break;
     } while (pageToken);
+
+    // Phase 2: process all quota results (most are already done by now).
+    if (page > 1) log(`Pages fetched: ${page}. Awaiting quota results...`);
+    const pageResults = await Promise.all(pagePromises);
+    for (const { qis, pageMediaMap } of pageResults) {
+      for (const qi of qis) {
+        const newMediaKey = qi?.[0];
+        const fname = (qi?.[2] ?? '').toLowerCase();
+        const noExt = fname.replace(/\.[^.]+$/, '');
+        let item = nameMap.get(fname) || nameMap.get(noExt);
+        // Fallback: match via dedupKey from the lcxiM item
+        if (!item && dedupKeyMap.size > 0) {
+          const rawItem = pageMediaMap.get(newMediaKey);
+          if (rawItem?.[3]) item = dedupKeyMap.get(rawItem[3]);
+        }
+        if (!item) continue;
+        const key = applyQuotaInfo(item, qi, newMediaKey);
+        if (key) verified.add(key);
+      }
+    }
 
     writeManifest(manifest);
     const allDone = verified.size >= items.length;
