@@ -81,3 +81,14 @@ Gui/
 - Архивные фото не видны в mode 1 (`lcxiM`) — нужен mode 2 / archive path.
 - Скачивание (pLFTfd) нельзя делать через CDP страницы (CORS) — только Node.js fetch с куками.
 - `mediaKey` нестабилен после re-upload — `dedupKey` стабилен, использовать его для дедупликации.
+
+## Известные проблемы с файлами из Google Takeout
+
+**GooglePhotosTakeoutHelper (и Neo-форки) зашивают oversized EXIF-thumbnail.**
+Файлы, обработанные этим инструментом, содержат в EXIF-блоке (APP1) встроенную миниатюру ~496×280 px (~15 КБ) вместо стандартной 160×120. Это приводит к тому, что Android MediaStore / Google Photos на устройстве не видит файл совсем.
+
+Симптом: APP1 сегмент > 5 КБ при том что файл — обычное JPEG без XMP.
+
+Решение реализовано в `pushPhotoToPixel` (`Gui/steps/trashReuploadStep.mjs`): функция `stripExifThumbnail` перед каждым ADB push вырезает IFD1 + thumbnail байты и пересобирает APP1. Оригинал на диске не изменяется — правка применяется только к временному файлу для передачи.
+
+Алгоритм: найти IFD1 pointer в IFD0 → запомнить TIFF-offset IFD1 → обнулить pointer → обрезать APP1 до этого offset → пересобрать JPEG.
