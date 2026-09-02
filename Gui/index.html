@@ -313,6 +313,7 @@ button.small { padding: 4px 12px; font-size: 12px; }
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0">
             <button class="small danger step-btn" id="btn-trash-reupload" onclick="runTrashReupload()" disabled>Trash &amp; Push</button>
+            <button class="small step-btn" id="btn-repush" onclick="runRepush()" disabled style="display:none">Repush to Phone</button>
             <button class="small step-btn" id="btn-stop-trash" onclick="stopTrashReupload()" style="display:none;background:var(--surface2);color:var(--error);border-color:var(--error)">Stop</button>
           </div>
         </div>
@@ -1700,6 +1701,12 @@ function updateButtonStates() {
   setBtn('btn-match', (s.quota ?? 0) > 0);
   setBtn('btn-view-unmatched', (s.quota ?? 0) > 0);
   setBtn('btn-trash-reupload', (s.downloaded ?? 0) > 0);
+  const repushBtn = document.getElementById('btn-repush');
+  if (repushBtn) {
+    const showRepush = (s.trashed ?? 0) > 0;
+    repushBtn.style.display = showRepush ? 'inline-block' : 'none';
+    repushBtn.disabled = busy || !showRepush;
+  }
   setBtn('btn-verify', (s.trashed ?? 0) > 0);
   setBtn('btn-view-unverified', (s.trashed ?? 0) > (s.verified ?? 0));
   setBtn('btn-restore-albums', (s.verified ?? 0) > 0);
@@ -1850,6 +1857,13 @@ async function runTrashReupload() {
       }},
     ],
   });
+}
+
+async function runRepush() {
+  if (currentOp) return;
+  const concurrency = parseInt(document.getElementById('inp-concurrency').value, 10) || 3;
+  const r = await post('/api/repush', { concurrency });
+  if (r.error) appendLog(`Error: ${r.error}`, 'error');
 }
 
 async function stopTrashReupload() {

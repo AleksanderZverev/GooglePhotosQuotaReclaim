@@ -64,6 +64,74 @@ async function permanentDeleteFromTrash(cdp, tokens, dedupKey) {
   if (r.status !== 200 || r.hasError) throw new Error(`XwAOJf/trash status=${r.status} hasError=${r.hasError} body=${r.body}`);
 }
 
+export async function repushStep({ concurrency = 3 } = {}) {
+  opStart('repush');
+  if (!checkAdb()) {
+    const msg = 'No ADB device connected';
+    log(msg, 'error');
+    opEnd('repush', false, msg);
+    return { ok: false, error: msg };
+  }
+  try {
+    const manifest = readManifest();
+    const items = manifest.filter(i => i.trashedAt && i.downloadedAs);
+    if (!items.length) {
+      const msg = 'No trashed items to repush';
+      log(msg, 'success');
+      opEnd('repush', true, msg);
+      return { ok: true, done: 0 };
+    }
+    const missing = items.filter(i => !fs.existsSync(i.downloadedAs));
+    if (missing.length) log(`Warning: ${missing.length} files missing from disk (will be skipped).`, 'warn');
+    const toPush = items.filter(i => fs.existsSync(i.downloadedAs));
+    if (!toPush.length) {
+      const msg = 'All files missing from disk — nothing to push';
+      log(msg, 'error');
+      opEnd('repush', false, msg);
+      return { ok: false, error: msg };
+    }
+    const poolSize = Math.max(1, Math.min(concurrency, 10));
+    log(`Repushing ${toPush.length} items to Pixel (concurrency: ${poolSize}).`);
+    let counter = 0, done = 0, errors = 0;
+    const iter = toPush[Symbol.iterator]();
+    async function worker() {
+      for (;;) {
+        const { value: item, done: d } = iter.next();
+        if (d) break;
+        const n = ++counter;
+        const label = item.filename || item.mediaKey.slice(0, 16);
+        try {
+          log(`[${n}/${toPush.length}] Pushing ${label}...`);
+          await pushPhotoToPixel(item);
+          item.reuploadComplete = true;
+          item.reuploadedAt = new Date().toISOString();
+          done++;
+          log(`  ✓ ${label}`);
+        } catch (err) {
+          log(`  ✗ ${label}: ${err.message}`, 'error');
+          errors++;
+        }
+        if ((done + errors) % 10 === 0) writeManifest(manifest);
+      }
+    }
+    await Promise.all(Array.from({ length: poolSize }, worker));
+    writeManifest(manifest);
+    try {
+      adb('shell am force-stop com.google.android.apps.photos');
+      adb('shell am start -a android.intent.action.MAIN -n com.google.android.apps.photos/.home.HomeActivity');
+      log('Photos app restarted.', 'success');
+    } catch (err) { log(`Could not restart Photos: ${err.message}`, 'warn'); }
+    const summary = `Repushed ${done}/${toPush.length} items${errors ? `, ${errors} errors` : ''}.`;
+    log(summary, errors > 0 ? 'warn' : 'success');
+    opEnd('repush', errors === 0, summary);
+    return { ok: true, done, errors };
+  } catch (err) {
+    log(`Repush failed: ${err.message}`, 'error');
+    opEnd('repush', false, err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
 async function pushPhotoToPixel(item) {
   const rawName = path.basename(item.downloadedAs);
   const pushName = safeName(rawName);
