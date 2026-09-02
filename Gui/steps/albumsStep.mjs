@@ -33,6 +33,7 @@ function groupItemsByAlbum(items) {
   const albumGroups = new Map();
   for (const item of items) {
     for (const a of item.albums) {
+      if (a.isOtherOwner) continue; // photo belongs to another user in this album — skip restore
       if (!albumGroups.has(a.albumId)) albumGroups.set(a.albumId, { title: a.albumTitle, items: [] });
       albumGroups.get(a.albumId).items.push(item);
     }
@@ -48,7 +49,7 @@ export async function restoreAlbumsStep() {
     const tokens = await getTokens(cdp);
 
     // --- Part 1: Restore album memberships ---
-    const albumItems = manifest.filter(i => i.verified && i.newMediaKey && i.albums?.length && !i.albumsRestored);
+    const albumItems = manifest.filter(i => i.verified && i.newMediaKey && i.albums?.some(a => !a.isOtherOwner) && !i.albumsRestored);
     let totalRestored = 0;
     if (albumItems.length) {
       log(`Restoring ${albumItems.length} items into albums...`);
