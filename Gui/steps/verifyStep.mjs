@@ -1,5 +1,5 @@
 import { connectCdp } from '../lib/cdp.mjs';
-import { getTokens, callRpc, batchQuotaInfo } from '../lib/rpc.mjs';
+import { getTokens, enumerateAll, batchQuotaInfo } from '../lib/rpc.mjs';
 import { readManifest, writeManifest } from '../lib/manifest.mjs';
 import { log, opStart, opEnd } from '../lib/sse.mjs';
 
@@ -8,7 +8,6 @@ function buildFilenameToItemMap(items) {
   for (const i of items) {
     const name = (i.pushedAs || i.filename).toLowerCase();
     map.set(name, i);
-    // Also index without extension as fallback
     const noExt = name.replace(/\.[^.]+$/, '');
     if (noExt !== name && !map.has(noExt)) map.set(noExt, i);
   }
@@ -16,7 +15,7 @@ function buildFilenameToItemMap(items) {
 }
 
 function applyQuotaInfo(item, qi, newMediaKey) {
-  if (item.verified === true) return null; // already confirmed — skip
+  if (item.verified === true) return null;
   if (qi?.[30]?.[0] !== 1 && qi?.[14] === 2) {
     item.verified = true;
     item.newMediaKey = newMediaKey ?? qi?.[0];
@@ -33,8 +32,6 @@ export async function verifyStep() {
   const cdp = await connectCdp();
   try {
     const manifest = readManifest();
-    // verified !== true includes both undefined (not yet tried) and false (tried but still
-    // consuming quota) — we want to re-check false items on subsequent runs
     const items = manifest.filter(i => i.reuploadComplete && i.verified !== true);
     if (!items.length) {
       const msg = 'No items to verify';
@@ -45,52 +42,54 @@ export async function verifyStep() {
     log(`Verifying ${items.length} items...`);
     const tokens = await getTokens(cdp);
     const nameMap = buildFilenameToItemMap(items);
-    // dedupKey → item map for fast candidate lookup on each lcxiM page
     const dedupKeyMap = new Map(items.filter(i => i.dedupKey).map(i => [i.dedupKey, i]));
 
-    // Phase 1: fetch pages sequentially (pageToken dependency), kick off quota checks in parallel.
-    const verified = new Set();
-    const pagePromises = [];
-    const hasArchived = items.some(i => i.isArchived);
-    const modes = [1, ...(hasArchived ? [2] : [])]; // mode 1=library, mode 2=archive
+    // Phase 1: scan library + archive (if needed) using enumerateAll which handles
+    // pagination correctly without false early-exit on empty responses.
     let page = 0;
-    for (const mode of modes) {
-      if (mode === 2) log('Scanning archive (mode 2) for archived items...');
-      let pageToken = null;
-      do {
-        const payload = await callRpc(cdp, 'lcxiM', [pageToken, null, 500, null, mode, 1], tokens, { allowEmpty: true });
-        if (!payload) break;
-        const pageItems = payload?.[0] ?? [];
-        pageToken = payload?.[1] ?? null;
-        page++;
-        log(`Fetched page ${page} (${pageItems.length} items)`);
-        const candidateKeys = pageItems.map(i => i?.[0]).filter(Boolean);
-        if (candidateKeys.length > 0) {
-          const pageMediaMap = new Map(pageItems.filter(i => i?.[0]).map(i => [i[0], i]));
-          // Don't await — run quota checks for all pages concurrently with page fetching.
-          pagePromises.push(batchQuotaInfo(cdp, tokens, candidateKeys).then(qis => ({ qis, pageMediaMap })));
-        }
-      } while (pageToken);
+    const onPage = (p, total, pageItems) => {
+      page = p;
+      log(`Fetched page ${p} (${pageItems.length} items)`);
+    };
+
+    const libraryItems = await enumerateAll(cdp, tokens, { onPage });
+
+    const hasArchived = items.some(i => i.isArchived);
+    let archiveItems = [];
+    if (hasArchived) {
+      log('Scanning archive for archived items...');
+      archiveItems = await enumerateAll(cdp, tokens, { archive: true, onPage });
     }
 
-    // Phase 2: process all quota results (most are already done by now).
-    if (page > 1) log(`Pages fetched: ${page}. Awaiting quota results...`);
-    const pageResults = await Promise.all(pagePromises);
-    for (const { qis, pageMediaMap } of pageResults) {
+    // Phase 2: find candidates matching our manifest items, then quota-check only those.
+    const allCloudItems = [...libraryItems, ...archiveItems];
+    const allMediaKeys = allCloudItems.map(ci => ci?.[0]).filter(Boolean);
+    const mediaToLcxiM = new Map(allCloudItems.filter(ci => ci?.[0]).map(ci => [ci[0], ci]));
+
+    log(`Scanned ${allCloudItems.length} items. Checking quota (this takes a few minutes)...`);
+
+    // batchQuotaInfo for all items — only way to get filenames (qi[2]) for matching.
+    // Process in chunks with progress updates.
+    const CHUNK = 500;
+    const verified = new Set();
+    for (let i = 0; i < allMediaKeys.length; i += CHUNK) {
+      const chunk = allMediaKeys.slice(i, i + CHUNK);
+      const qis = await batchQuotaInfo(cdp, tokens, chunk);
       for (const qi of qis) {
         const newMediaKey = qi?.[0];
-        const fname = (qi?.[2] ?? '').toLowerCase();
+        const fname = (typeof qi?.[2] === 'string' ? qi[2] : '').toLowerCase();
         const noExt = fname.replace(/\.[^.]+$/, '');
         let item = nameMap.get(fname) || nameMap.get(noExt);
-        // Fallback: match via dedupKey from the lcxiM item
-        if (!item && dedupKeyMap.size > 0) {
-          const rawItem = pageMediaMap.get(newMediaKey);
-          if (rawItem?.[3]) item = dedupKeyMap.get(rawItem[3]);
+        if (!item) {
+          const dk = mediaToLcxiM.get(newMediaKey)?.[3];
+          if (dk) item = dedupKeyMap.get(dk);
         }
         if (!item) continue;
         const key = applyQuotaInfo(item, qi, newMediaKey);
         if (key) verified.add(key);
       }
+      log(`Progress: checked ${Math.min(i + CHUNK, allMediaKeys.length)}/${allMediaKeys.length}, verified ${verified.size}/${items.length}`);
+      if (verified.size >= items.length) break;
     }
 
     writeManifest(manifest);
