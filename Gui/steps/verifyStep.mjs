@@ -47,7 +47,6 @@ export async function verifyStep() {
     const nameMap = buildFilenameToItemMap(items);
     // dedupKey → item map for fast candidate lookup on each lcxiM page
     const dedupKeyMap = new Map(items.filter(i => i.dedupKey).map(i => [i.dedupKey, i]));
-    const fallbackItems = items.filter(i => !i.dedupKey); // items without dedupKey (rare)
 
     const verified = new Set();
     let pageToken = null, page = 0;
@@ -60,20 +59,8 @@ export async function verifyStep() {
       // Build mediaKey→rawItem map for this page (used for dedupKey reverse-lookup)
       const pageMediaMap = new Map(pageItems.filter(i => i?.[0]).map(i => [i[0], i]));
 
-      // Find candidates by dedupKey (fast path — avoids checking all 500 items per page)
-      const dedupCandidates = dedupKeyMap.size > 0
-        ? pageItems.filter(i => i?.[3] && dedupKeyMap.has(i[3]))
-        : [];
-
-      let candidateKeys;
-      if (dedupCandidates.length > 0) {
-        candidateKeys = dedupCandidates.map(i => i?.[0]).filter(Boolean);
-      } else if (fallbackItems.length > 0) {
-        // No dedupKey matches on this page but some items have no dedupKey → check all
-        candidateKeys = pageItems.map(i => i?.[0]).filter(Boolean);
-      } else {
-        candidateKeys = []; // all items have dedupKeys, none matched this page — skip
-      }
+      // After re-upload the dedupKey changes, so filename matching must run on every page.
+      const candidateKeys = pageItems.map(i => i?.[0]).filter(Boolean);
 
       if (candidateKeys.length > 0) {
         const qis = await batchQuotaInfo(cdp, tokens, candidateKeys);
