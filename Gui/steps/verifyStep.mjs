@@ -51,21 +51,27 @@ export async function verifyStep() {
     // Phase 1: fetch pages sequentially (pageToken dependency), kick off quota checks in parallel.
     const verified = new Set();
     const pagePromises = [];
-    let pageToken = null, page = 0;
-    do {
-      const payload = await callRpc(cdp, 'lcxiM', [pageToken, null, 500, null, 1, 1], tokens, { allowEmpty: true });
-      if (!payload) break; // end of library — server returned empty response with no wrb.fr
-      const pageItems = payload?.[0] ?? [];
-      pageToken = payload?.[1] ?? null;
-      page++;
-      log(`Fetched page ${page} (${pageItems.length} items)`);
-      const candidateKeys = pageItems.map(i => i?.[0]).filter(Boolean);
-      if (candidateKeys.length > 0) {
-        const pageMediaMap = new Map(pageItems.filter(i => i?.[0]).map(i => [i[0], i]));
-        // Don't await — run quota checks for all pages concurrently with page fetching.
-        pagePromises.push(batchQuotaInfo(cdp, tokens, candidateKeys).then(qis => ({ qis, pageMediaMap })));
-      }
-    } while (pageToken);
+    const hasArchived = items.some(i => i.isArchived);
+    const modes = [1, ...(hasArchived ? [2] : [])]; // mode 1=library, mode 2=archive
+    let page = 0;
+    for (const mode of modes) {
+      if (mode === 2) log('Scanning archive (mode 2) for archived items...');
+      let pageToken = null;
+      do {
+        const payload = await callRpc(cdp, 'lcxiM', [pageToken, null, 500, null, mode, 1], tokens, { allowEmpty: true });
+        if (!payload) break;
+        const pageItems = payload?.[0] ?? [];
+        pageToken = payload?.[1] ?? null;
+        page++;
+        log(`Fetched page ${page} (${pageItems.length} items)`);
+        const candidateKeys = pageItems.map(i => i?.[0]).filter(Boolean);
+        if (candidateKeys.length > 0) {
+          const pageMediaMap = new Map(pageItems.filter(i => i?.[0]).map(i => [i[0], i]));
+          // Don't await — run quota checks for all pages concurrently with page fetching.
+          pagePromises.push(batchQuotaInfo(cdp, tokens, candidateKeys).then(qis => ({ qis, pageMediaMap })));
+        }
+      } while (pageToken);
+    }
 
     // Phase 2: process all quota results (most are already done by now).
     if (page > 1) log(`Pages fetched: ${page}. Awaiting quota results...`);
