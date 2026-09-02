@@ -42,9 +42,9 @@ async function trashPhoto(cdp, tokens, dedupKey) {
         headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body,
       });
       const t = await r.text();
-      return { status: r.status, hasError: t.includes('"er"') };
+      return { status: r.status, hasError: t.includes('"er"'), body: t };
     })()`);
-  if (tr.status !== 200 || tr.hasError) throw new Error(`Trash status=${tr.status}`);
+  if (tr.status !== 200 || tr.hasError) throw new Error(`Trash status=${tr.status} body=${tr.body}`);
 }
 
 async function permanentDeleteFromTrash(cdp, tokens, dedupKey) {
@@ -59,9 +59,9 @@ async function permanentDeleteFromTrash(cdp, tokens, dedupKey) {
         headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body,
       });
       const t = await resp.text();
-      return { status: resp.status, hasError: t.includes('"er"') };
+      return { status: resp.status, hasError: t.includes('"er"'), body: t };
     })()`);
-  if (r.status !== 200 || r.hasError) throw new Error(`XwAOJf/trash status=${r.status} hasError=${r.hasError}`);
+  if (r.status !== 200 || r.hasError) throw new Error(`XwAOJf/trash status=${r.status} hasError=${r.hasError} body=${r.body}`);
 }
 
 async function pushPhotoToPixel(item) {
