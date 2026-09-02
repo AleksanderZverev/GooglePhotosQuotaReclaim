@@ -53,7 +53,8 @@ export async function verifyStep() {
     const pagePromises = [];
     let pageToken = null, page = 0;
     do {
-      const payload = await callRpc(cdp, 'lcxiM', [pageToken, null, 500, null, 1, 1], tokens);
+      const payload = await callRpc(cdp, 'lcxiM', [pageToken, null, 500, null, 1, 1], tokens, { allowEmpty: true });
+      if (!payload) break; // end of library — server returned empty response with no wrb.fr
       const pageItems = payload?.[0] ?? [];
       pageToken = payload?.[1] ?? null;
       page++;
