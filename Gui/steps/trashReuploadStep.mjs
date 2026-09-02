@@ -132,11 +132,45 @@ export async function repushStep({ concurrency = 3 } = {}) {
   }
 }
 
+function stripExifThumbnail(buf) {
+  if (buf[0] !== 0xFF || buf[1] !== 0xD8 || buf[2] !== 0xFF || buf[3] !== 0xE0) return buf;
+  const app0Len = buf.readUInt16BE(4);
+  const app1Off = 2 + 2 + app0Len;
+  if (buf[app1Off] !== 0xFF || buf[app1Off + 1] !== 0xE1) return buf;
+  const app1Len = buf.readUInt16BE(app1Off + 2);
+  if (app1Len < 1000) return buf; // маленький EXIF — thumbnail точно нет
+  const tiffBase = app1Off + 10; // marker(2) + len(2) + "Exif\0\0"(6)
+  if (buf.slice(tiffBase, tiffBase + 2).toString('ascii') !== 'MM') return buf;
+  const ifd0Off = buf.readUInt32BE(tiffBase + 4);
+  const count   = buf.readUInt16BE(tiffBase + ifd0Off);
+  const ifd1PtrOff = tiffBase + ifd0Off + 2 + count * 12;
+  if (ifd1PtrOff + 4 > buf.length) return buf;
+  const ifd1TiffOff = buf.readUInt32BE(ifd1PtrOff);
+  if (ifd1TiffOff === 0) return buf; // уже нет thumbnail
+
+  // Обрезаем APP1 прямо перед IFD1 — полностью удаляем thumbnail из файла
+  const fixed = Buffer.from(buf);
+  fixed.writeUInt32BE(0, ifd1PtrOff); // обнуляем указатель
+  const newApp1Len  = (tiffBase - app1Off - 2) + ifd1TiffOff; // len_field(2) + Exif\0\0(6) + TIFF до IFD1
+  const newApp1End  = app1Off + 2 + newApp1Len;
+  const oldApp1End  = app1Off + 2 + app1Len;
+  fixed.writeUInt16BE(newApp1Len, app1Off + 2);
+  return Buffer.concat([fixed.slice(0, newApp1End), fixed.slice(oldApp1End)]);
+}
+
 async function pushPhotoToPixel(item) {
   const rawName = path.basename(item.downloadedAs);
   const pushName = safeName(rawName);
   const remote = `/sdcard/DCIM/Camera/${pushName}`;
-  await adbAsync(`push "${item.downloadedAs}" "${remote}"`);
+  let fileBuf = fs.readFileSync(item.downloadedAs);
+  const fixedBuf = stripExifThumbnail(fileBuf);
+  const tmpPath = fixedBuf !== fileBuf ? item.downloadedAs + '.tmp' : null;
+  if (tmpPath) fs.writeFileSync(tmpPath, fixedBuf);
+  try {
+    await adbAsync(`push "${tmpPath ?? item.downloadedAs}" "${remote}"`);
+  } finally {
+    if (tmpPath) fs.unlinkSync(tmpPath);
+  }
   item.pushedAs = pushName;
   try {
     await adbAsync(`shell content insert --uri content://media/external/images/media --bind "_data:s:${remote}" --bind "mime_type:s:image/jpeg" --bind "_display_name:s:${pushName}"`);
