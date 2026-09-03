@@ -124,7 +124,7 @@ export async function restoreAlbumsStep() {
         await Promise.all(batch.map(async item => {
           const label = item.filename || item.mediaKey.slice(0, 16);
           try {
-            await archivePhoto(cdp, tokens, item.dedupKey);
+            await archivePhoto(cdp, tokens, item.newMediaKey);
             item.archivedRestored = true;
             item.archivedRestoredAt = new Date().toISOString();
             archivedCount++;
