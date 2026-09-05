@@ -30,25 +30,40 @@ export async function matchManifestStep() {
     if (!fs.existsSync(DOWNLOADS_DIR)) throw new Error(`downloads/ not found at ${DOWNLOADS_DIR}`);
     const downloadFiles = fs.readdirSync(DOWNLOADS_DIR);
     const downloadMap = new Map(downloadFiles.map(f => [f.toLowerCase(), path.join(DOWNLOADS_DIR, f)]));
+    // Map from basename-without-extension → first matching full path (for fallback)
+    const downloadMapNoExt = new Map();
+    for (const f of downloadFiles) {
+      const base = path.basename(f, path.extname(f)).toLowerCase();
+      if (!downloadMapNoExt.has(base)) downloadMapNoExt.set(base, path.join(DOWNLOADS_DIR, f));
+    }
     log(`${downloadFiles.length} files in downloads/`);
     const manifest = readManifest();
-    let matched = 0;
+    let matched = 0, matchedNoExt = 0;
     for (const item of manifest) {
       if (item.downloaded && item.downloadedAs) continue;
       const fname = item.filename?.toLowerCase();
       if (!fname) continue;
-      const localPath = downloadMap.get(fname);
-      if (!localPath) continue;
-      item.downloaded = true;
-      item.downloadedAs = localPath;
-      matched++;
+      let localPath = downloadMap.get(fname);
+      if (localPath) {
+        item.downloaded = true;
+        item.downloadedAs = localPath;
+        matched++;
+      } else {
+        const base = path.basename(fname, path.extname(fname));
+        localPath = downloadMapNoExt.get(base);
+        if (!localPath) continue;
+        item.downloaded = true;
+        item.downloadedAs = localPath;
+        matchedNoExt++;
+      }
     }
     writeManifest(manifest);
     const total = manifest.filter(i => i.consumesQuota).length;
-    const summary = `Matched ${matched} files. Total quota: ${total}.`;
+    const extNote = matchedNoExt > 0 ? ` (${matchedNoExt} by name without extension)` : '';
+    const summary = `Matched ${matched + matchedNoExt} files${extNote}. Total quota: ${total}.`;
     log(summary, 'success');
     opEnd('match', true, summary);
-    return { ok: true, matched };
+    return { ok: true, matched: matched + matchedNoExt };
   } catch (err) {
     log(`Match failed: ${err.message}`, 'error');
     opEnd('match', false, err.message);
