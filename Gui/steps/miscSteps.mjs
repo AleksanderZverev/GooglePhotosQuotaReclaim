@@ -3,8 +3,9 @@ import path from 'path';
 import { connectCdp } from '../lib/cdp.mjs';
 import { getTokens, enumerateAll, batchQuotaInfo } from '../lib/rpc.mjs';
 import { readManifest, writeManifest } from '../lib/manifest.mjs';
-import { adb, checkAdb } from '../lib/adb.mjs';
+import { adb, adbAsync, checkAdb, safeName } from '../lib/adb.mjs';
 import { log, opStart, opEnd } from '../lib/sse.mjs';
+import { stripExifThumbnail } from './trashReuploadStep.mjs';
 import { DOWNLOADS_DIR } from '../lib/config.mjs';
 
 export async function cleanupPixelStep() {
@@ -131,6 +132,81 @@ export async function matchAlbumsStep({ albumIds }) {
     opEnd('match', false, err.message);
     return { ok: false, error: err.message };
   } finally { cdp.close(); }
+}
+
+export async function pushFolderStep({ folderPath, concurrency = 3 } = {}) {
+  opStart('push-folder');
+  if (!folderPath) {
+    const msg = 'folderPath is required';
+    log(msg, 'error');
+    opEnd('push-folder', false, msg);
+    return { ok: false, error: msg };
+  }
+  if (!checkAdb()) {
+    const msg = 'No ADB device connected';
+    log(msg, 'error');
+    opEnd('push-folder', false, msg);
+    return { ok: false, error: msg };
+  }
+  try {
+    if (!fs.existsSync(folderPath)) throw new Error(`Folder not found: ${folderPath}`);
+    const allFiles = fs.readdirSync(folderPath)
+      .filter(f => fs.statSync(path.join(folderPath, f)).isFile());
+    if (!allFiles.length) {
+      const msg = 'No files in the specified folder';
+      log(msg, 'warn');
+      opEnd('push-folder', true, msg);
+      return { ok: true, done: 0 };
+    }
+    const poolSize = Math.max(1, Math.min(concurrency, 10));
+    log(`Pushing ${allFiles.length} files from "${folderPath}" to Pixel (concurrency: ${poolSize}).`);
+    let counter = 0, done = 0, errors = 0;
+    const iter = allFiles[Symbol.iterator]();
+    async function worker() {
+      for (;;) {
+        const { value: fname, done: d } = iter.next();
+        if (d) break;
+        const n = ++counter;
+        const localPath = path.join(folderPath, fname);
+        const pushName = safeName(fname);
+        const remote = `/sdcard/DCIM/Camera/${pushName}`;
+        try {
+          log(`[${n}/${allFiles.length}] Pushing ${fname}...`);
+          let fileBuf = fs.readFileSync(localPath);
+          const fixedBuf = stripExifThumbnail(fileBuf);
+          const tmpPath = fixedBuf !== fileBuf ? localPath + '.push_tmp' : null;
+          if (tmpPath) fs.writeFileSync(tmpPath, fixedBuf);
+          try {
+            await adbAsync(`push "${tmpPath ?? localPath}" "${remote}"`);
+          } finally {
+            if (tmpPath) fs.unlinkSync(tmpPath);
+          }
+          try {
+            await adbAsync(`shell content insert --uri content://media/external/images/media --bind "_data:s:${remote}" --bind "mime_type:s:image/jpeg" --bind "_display_name:s:${pushName}"`);
+          } catch {}
+          done++;
+          log(`  ✓ ${fname}`);
+        } catch (err) {
+          log(`  ✗ ${fname}: ${err.message}`, 'error');
+          errors++;
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: poolSize }, worker));
+    try {
+      adb('shell am force-stop com.google.android.apps.photos');
+      adb('shell am start -a android.intent.action.MAIN -n com.google.android.apps.photos/.home.HomeActivity');
+      log('Photos app restarted.', 'success');
+    } catch (err) { log(`Could not restart Photos: ${err.message}`, 'warn'); }
+    const summary = `Pushed ${done}/${allFiles.length} files${errors ? `, ${errors} errors` : ''}.`;
+    log(summary, errors > 0 ? 'warn' : 'success');
+    opEnd('push-folder', errors === 0, summary);
+    return { ok: true, done, errors };
+  } catch (err) {
+    log(`Push folder failed: ${err.message}`, 'error');
+    opEnd('push-folder', false, err.message);
+    return { ok: false, error: err.message };
+  }
 }
 
 export async function switchAccountStep(accountPath) {

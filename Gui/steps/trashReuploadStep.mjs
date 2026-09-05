@@ -132,7 +132,7 @@ export async function repushStep({ concurrency = 3 } = {}) {
   }
 }
 
-function stripExifThumbnail(buf) {
+export function stripExifThumbnail(buf) {
   if (buf[0] !== 0xFF || buf[1] !== 0xD8 || buf[2] !== 0xFF || buf[3] !== 0xE0) return buf;
   const app0Len = buf.readUInt16BE(4);
   const app1Off = 2 + 2 + app0Len;

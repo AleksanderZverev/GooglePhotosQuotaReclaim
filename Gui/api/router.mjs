@@ -14,7 +14,7 @@ import { enrichStep } from '../steps/enrichStep.mjs';
 import { restoreAlbumsStep } from '../steps/albumsStep.mjs';
 import { trashReuploadStep, repushStep } from '../steps/trashReuploadStep.mjs';
 import { verifyStep } from '../steps/verifyStep.mjs';
-import { cleanupPixelStep, matchManifestStep, matchAlbumsStep, switchAccountStep } from '../steps/miscSteps.mjs';
+import { cleanupPixelStep, matchManifestStep, matchAlbumsStep, switchAccountStep, pushFolderStep } from '../steps/miscSteps.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const emailCacheMap = new Map();
@@ -153,6 +153,7 @@ function buildOperationsMap(body) {
     '/api/cleanup-pixel':  () => cleanupPixelStep(),
     '/api/match':          () => body.albumIds?.length ? matchAlbumsStep(body) : matchManifestStep(),
     '/api/switch-account': () => body.path ? switchAccountStep(body.path) : Promise.resolve({ error: 'path required' }),
+    '/api/push-folder':    () => body.folderPath ? pushFolderStep(body) : Promise.resolve({ error: 'folderPath required' }),
     '/api/reset-manifest': () => {
       if (fs.existsSync(MANIFEST_FILE)) fs.unlinkSync(MANIFEST_FILE);
       broadcast('stats', manifestStats([]));
