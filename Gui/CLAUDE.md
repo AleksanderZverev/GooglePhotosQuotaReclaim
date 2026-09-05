@@ -49,7 +49,7 @@ restore    →  + albumsRestored=true
 |------|-------------|-----|
 | `scanStep.mjs` | `/api/scan`, `/api/scan-full` | 2 — scan+enrich+saveAlbumMemberships |
 | `enrichStep.mjs` | `/api/enrich` | 3 — standalone dedupKey enrich |
-| `miscSteps.mjs` | `/api/match`, `/api/cleanup-pixel`, `/api/switch-account` | разные |
+| `miscSteps.mjs` | `/api/match`, `/api/cleanup-pixel`, `/api/switch-account`, `/api/push-folder` | разные |
 | `trashReuploadStep.mjs` | `/api/trash-reupload` | 4 — необратимый шаг |
 | `verifyStep.mjs` | `/api/verify` | 5 — проверка quota-free |
 | `albumsStep.mjs` | `/api/restore-albums` | 6 — restore + re-archive |

@@ -422,20 +422,20 @@ button.small { padding: 4px 12px; font-size: 12px; }
 <!-- Push-folder modal -->
 <div id="pf-overlay" class="pf-overlay" style="display:none" onclick="closePushFolderModal()">
   <div class="pf-box" onclick="event.stopPropagation()">
-    <div class="pf-title">📂 Push folder to Pixel</div>
+    <div class="pf-title" id="pf-title-text">📂 Push folder to Pixel</div>
     <div>
-      <div class="pf-label">Folder path</div>
+      <div class="pf-label" id="pf-folder-label">Folder path</div>
       <input class="pf-input" id="pf-folder-input" type="text" placeholder="C:\Users\...\photos" spellcheck="false">
     </div>
     <div class="pf-row">
       <div style="flex:1">
-        <div class="pf-label">Concurrency</div>
+        <div class="pf-label" id="pf-conc-label">Concurrency</div>
         <input class="pf-input" id="pf-concurrency-input" type="number" min="1" max="10" value="3" style="width:70px">
       </div>
     </div>
     <div class="pf-footer">
-      <button class="small" onclick="closePushFolderModal()">Cancel</button>
-      <button class="small primary" id="pf-run-btn" onclick="runPushFolder()">Push</button>
+      <button class="small" id="pf-cancel-btn" onclick="closePushFolderModal()">Cancel</button>
+      <button class="small primary" id="pf-push-btn" onclick="runPushFolder()">Push</button>
     </div>
   </div>
 </div>
@@ -562,6 +562,14 @@ const LANGS = {
     step7Pending: 'Trash + reupload first',
     step7Ready: (n) => `${n} files on Pixel to clean`,
     btnCleanup: 'Cleanup',
+
+    toolsMenuLabel: '⚙ Tools',
+    toolsPushFolder: '📂 Push folder to Pixel',
+    pfTitle: '📂 Push folder to Pixel',
+    pfFolderLabel: 'Folder path',
+    pfConcurrencyLabel: 'Concurrency',
+    pfCancel: 'Cancel',
+    pfPush: 'Push',
 
     step8Name: 'Say Thank You',
     step8Desc: 'This tool saved your Google Photos storage — completely free. If it made your day a little easier, a coffee is a lovely way to say thanks.',
@@ -743,6 +751,14 @@ When you click Load, the app asks Chrome to fetch your album list using the same
     step7Ready: (n) => `${n} файлов на Pixel для очистки`,
     btnCleanup: 'Очистить',
 
+    toolsMenuLabel: '⚙ Инструменты',
+    toolsPushFolder: '📂 Залить папку на Pixel',
+    pfTitle: '📂 Залить папку на Pixel',
+    pfFolderLabel: 'Путь к папке',
+    pfConcurrencyLabel: 'Параллелизм',
+    pfCancel: 'Отмена',
+    pfPush: 'Залить',
+
     step8Name: 'Сказать «Спасибо»',
     step8Desc: 'Этот инструмент бесплатно освободил место в твоём Google Photos. Если это сделало твой день легче — чашка кофе будет приятным знаком благодарности.',
     btnCoffee: '☕ Купить кофе',
@@ -922,6 +938,14 @@ ADB нужен только для шагов <b>Удалить + залить</
     step7Pending: '請先完成刪除並重新上傳',
     step7Ready: (n) => `Pixel 上有 ${n} 個檔案待清理`,
     btnCleanup: '清理',
+
+    toolsMenuLabel: '⚙ 工具',
+    toolsPushFolder: '📂 推送資料夾到 Pixel',
+    pfTitle: '📂 推送資料夾到 Pixel',
+    pfFolderLabel: '資料夾路徑',
+    pfConcurrencyLabel: '並行數',
+    pfCancel: '取消',
+    pfPush: '推送',
 
     step8Name: '向作者致謝',
     step8Desc: '這個工具免費幫你釋出 Google 相簿空間。如果有幫上忙，請作者喝杯咖啡就是最好的感謝。',
@@ -1103,6 +1127,14 @@ Pixel 上的 Google 相簿接著會備份這些檔案——而 Pixel 1 有永久
     step7Ready: (n) => `Pixel 上有 ${n} 个文件待清理`,
     btnCleanup: '清理',
 
+    toolsMenuLabel: '⚙ 工具',
+    toolsPushFolder: '📂 推送文件夹到 Pixel',
+    pfTitle: '📂 推送文件夹到 Pixel',
+    pfFolderLabel: '文件夹路径',
+    pfConcurrencyLabel: '并行数',
+    pfCancel: '取消',
+    pfPush: '推送',
+
     step8Name: '向作者致谢',
     step8Desc: '这个工具免费帮你释放了 Google 相册空间。如果有帮上忙，请作者喝杯咖啡就是最好的感谢。',
     btnCoffee: '☕ 请我喝杯咖啡',
@@ -1282,6 +1314,14 @@ Pixel 上的 Google 相册接着会备份这些文件——而 Pixel 1 有永久
     step7Pending: '先に削除と再アップロードを完了してください',
     step7Ready: (n) => `Pixel 上に ${n} 件の削除待ちファイル`,
     btnCleanup: 'クリーンアップ',
+
+    toolsMenuLabel: '⚙ ツール',
+    toolsPushFolder: '📂 フォルダを Pixel に転送',
+    pfTitle: '📂 フォルダを Pixel に転送',
+    pfFolderLabel: 'フォルダのパス',
+    pfConcurrencyLabel: '並列数',
+    pfCancel: 'キャンセル',
+    pfPush: '転送',
 
     step8Name: '作者に感謝を伝える',
     step8Desc: 'このツールは Google フォトの容量を無料で解放します。役に立ったら、コーヒー一杯が一番の感謝になります。',
@@ -1522,6 +1562,18 @@ function applyLang() {
   setText('btn-view-unverified', t('btnViewUnverified'));
   setText('btn-restore-albums', t('btnRestore'));
   setText('btn-cleanup-pixel', t('btnCleanup'));
+
+  const toolsBtn = document.querySelector('.tools-dropdown-btn');
+  if (toolsBtn) toolsBtn.textContent = t('toolsMenuLabel') + ' ▾';
+  const toolsPfItem = document.querySelector('.tools-menu-item');
+  if (toolsPfItem) toolsPfItem.textContent = t('toolsPushFolder');
+  setText('pf-title-text', t('pfTitle'));
+  const pfFolderLabel = document.getElementById('pf-folder-label');
+  if (pfFolderLabel) pfFolderLabel.textContent = t('pfFolderLabel');
+  const pfConcLabel = document.getElementById('pf-conc-label');
+  if (pfConcLabel) pfConcLabel.textContent = t('pfConcurrencyLabel');
+  setText('pf-cancel-btn', t('pfCancel'));
+  setText('pf-push-btn', t('pfPush'));
 
   setText('chk-empty-trash-label', t('chkEmptyTrash'));
   setText('lbl-concurrency', t('lblConcurrency'));
